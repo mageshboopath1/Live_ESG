@@ -1,0 +1,82 @@
+[
+    {
+        "industry_name": "Reliance Industries Limited - C2 Complex",
+        "address": "At and PO Reliance Greens, Main Admin Building, Tal. Lalpur",
+        "city": "Jamnagar",
+        "state_name": "Gujarat",
+        "category_name": "Petro Chemical",
+        "has_clickable_action": true,
+        "source_name": "Reliance Industries Limited",
+        "detail_page_url": "https://rtdms.cpcb.gov.in/publicdata/#/l/reports/average-report/eyJkYXRhIjp7ImluZHVzdHJ5X25hbWUiOiJSZWxpYW5jZSBJbmR1c3RyaWVzIExpbWl0ZWQgLSBDMiBDb21wbGV4IiwiaW5kdXN0cnlfaWQiOiJpbmR1c3RyeV83MTA4Iiwic3RhdGVfbmFtZSI6Ikd1amFyYXQiLCJzdGF0ZV9pZCI6InN0YXRlXzQ2IiwiY2F0ZWdvcnlfaWQiOiJjYXRlZ29yeV8yOCIsImNpdHkiOiJKYW1uYWdhciIsImNhdGVnb3J5X25hbWUiOiJQZXRybyBDaGVtaWNhbCIsImlzX2dhbmdhIjoibm8iLCJhY3Rpb24iOlsidmlldyJdfX0%3D"
+    },
+    {
+        "industry_name": "Reliance Industries Limited - Dahej",
+        "address": "Dahej Manufacturing Division,P.O.: Dahej,Ta: Vagra Dist.: Bharuch",
+        "city": "Bharuch",
+        "state_name": "Gujarat",
+        "category_name": "Petro Chemical",
+        "has_clickable_action": true,
+        "source_name": "Reliance Industries Limited",
+        "detail_page_url": "https://rtdms.cpcb.gov.in/publicdata/#/l/reports/average-report/eyJkYXRhIjp7ImluZHVzdHJ5X25hbWUiOiJSZWxpYW5jZSBJbmR1c3RyaWVzIExpbWl0ZWQgLSBEYWhlaiIsImluZHVzdHJ5X2lkIjoiaW5kdXN0cnlfOTA0Iiwic3RhdGVfbmFtZSI6Ikd1amFyYXQiLCJzdGF0ZV9pZCI6InN0YXRlXzQ2IiwiY2F0ZWdvcnlfaWQiOiJjYXRlZ29yeV8yOCIsImNpdHkiOiJCaGFydWNoIiwiY2F0ZWdvcnlfbmFtZSI6IlBldHJvIENoZW1pY2FsIiwiaXNfZ2FuZ2EiOiJubyIsImFjdGlvbiI6WyJ2aWV3Il19fQ%3D%3D"
+    },
+    {
+        "industry_name": "Reliance Industries Limited - Hazira",
+        "address": "Hazira",
+        "city": "Surat",
+        "state_name": "Gujarat",
+        "category_name": "Petro Chemical",
+        "has_clickable_action": true,
+        "source_name": "Reliance Industries Limited",
+        "detail_page_url": "https://rtdms.cpcb.gov.in/publicdata/#/l/reports/average-report/eyJkYXRhIjp7ImluZHVzdHJ5X25hbWUiOiJSZWxpYW5jZSBJbmR1c3RyaWVzIExpbWl0ZWQgLSBIYXppcmEiLCJpbmR1c3RyeV9pZCI6ImluZHVzdHJ5XzkwMyIsInN0YXRlX25hbWUiOiJHdWphcmF0Iiwic3RhdGVfaWQiOiJzdGF0ZV80NiIsImNhdGVnb3J5X2lkIjoiY2F0ZWdvcnlfMjgiLCJjaXR5IjoiU3VyYXQiLCJjYXRlZ29yeV9uYW1lIjoiUGV0cm8gQ2hlbWljYWwiLCJpc19nYW5nYSI6Im5vIiwiYWN0aW9uIjpbInZpZXciXX19"
+    },
+    {
+        "industry_name": "Reliance Industries Limited - Jamnagar - DTA",
+        "address": "At & Post Reliance Greens, Motikhavdi",
+        "city": "Jamnagar",
+        "state_name": "Gujarat",
+        "category_name": "Oil Refinery",
+        "has_clickable_action": true,
+        "source_name": "Reliance Industries Limited",
+        "detail_page_url": "https://rtdms.cpcb.gov.in/publicdata/#/l/reports/average-report/eyJkYXRhIjp7ImluZHVzdHJ5X25hbWUiOiJSZWxpYW5jZSBJbmR1c3RyaWVzIExpbWl0ZWQgLSBKYW1uYWdhciAtIERUQSIsImluZHVzdHJ5X2lkIjoiaW5kdXN0cnlfOTEzIiwic3RhdGVfbmFtZSI6Ikd1amFyYXQiLCJzdGF0ZV9pZCI6InN0YXRlXzQ2IiwiY2F0ZWdvcnlfaWQiOiJjYXRlZ29yeV8yIiwiY2l0eSI6IkphbW5hZ2FyIiwiY2F0ZWdvcnlfbmFtZSI6Ik9pbCBSZWZpbmVyeSIsImlzX2dhbmdhIjoibm8iLCJhY3Rpb24iOlsidmlldyJdfX0%3D"
+    },
+    {
+        "industry_name": "Reliance Industries Limited - Jamnagar - SEZ",
+        "address": "At & Post Reliance Greens, Motikhavdi",
+        "city": "Jamnagar",
+        "state_name": "Gujarat",
+        "category_name": "Oil Refinery",
+        "has_clickable_action": true,
+        "source_name": "Reliance Industries Limited",
+        "detail_page_url": "https://rtdms.cpcb.gov.in/publicdata/#/l/reports/average-report/eyJkYXRhIjp7ImluZHVzdHJ5X25hbWUiOiJSZWxpYW5jZSBJbmR1c3RyaWVzIExpbWl0ZWQgLSBKYW1uYWdhciAtIFNFWiIsImluZHVzdHJ5X2lkIjoiaW5kdXN0cnlfOTE0Iiwic3RhdGVfbmFtZSI6Ikd1amFyYXQiLCJzdGF0ZV9pZCI6InN0YXRlXzQ2IiwiY2F0ZWdvcnlfaWQiOiJjYXRlZ29yeV8yIiwiY2l0eSI6IkphbW5hZ2FyIiwiY2F0ZWdvcnlfbmFtZSI6Ik9pbCBSZWZpbmVyeSIsImlzX2dhbmdhIjoibm8iLCJhY3Rpb24iOlsidmlldyJdfX0%3D"
+    },
+    {
+        "industry_name": "Reliance Industries Limited, Nagothane Manufacturing Division",
+        "address": "Nagothane, Tal-Roha, Dist-Raigad.",
+        "city": "Raigad",
+        "state_name": "Maharashtra",
+        "category_name": "Petro Chemical",
+        "has_clickable_action": true,
+        "source_name": "Reliance Industries Limited",
+        "detail_page_url": "https://rtdms.cpcb.gov.in/publicdata/#/l/reports/average-report/eyJkYXRhIjp7ImluZHVzdHJ5X25hbWUiOiJSZWxpYW5jZSBJbmR1c3RyaWVzIExpbWl0ZWQsIE5hZ290aGFuZSBNYW51ZmFjdHVyaW5nIERpdmlzaW9uIiwiaW5kdXN0cnlfaWQiOiJpbmR1c3RyeV81MTk1Iiwic3RhdGVfbmFtZSI6Ik1haGFyYXNodHJhIiwic3RhdGVfaWQiOiJzdGF0ZV81MSIsImNhdGVnb3J5X2lkIjoiY2F0ZWdvcnlfMjgiLCJjaXR5IjoiUmFpZ2FkIiwiY2F0ZWdvcnlfbmFtZSI6IlBldHJvIENoZW1pY2FsIiwiaXNfZ2FuZ2EiOiJubyIsImFjdGlvbiI6WyJ2aWV3Il19fQ%3D%3D"
+    },
+    {
+        "industry_name": "Reliance Industries Limited - Patalganga",
+        "address": "Plot B1-B3,B4, MIDC Industrial Area,Patalganga, Dist-Raigad.",
+        "city": "Patalganga",
+        "state_name": "Maharashtra",
+        "category_name": "Petro Chemical",
+        "has_clickable_action": true,
+        "source_name": "Reliance Industries Limited",
+        "detail_page_url": "https://rtdms.cpcb.gov.in/publicdata/#/l/reports/average-report/eyJkYXRhIjp7ImluZHVzdHJ5X25hbWUiOiJSZWxpYW5jZSBJbmR1c3RyaWVzIExpbWl0ZWQgLSBQYXRhbGdhbmdhIiwiaW5kdXN0cnlfaWQiOiJpbmR1c3RyeV85MzkiLCJzdGF0ZV9uYW1lIjoiTWFoYXJhc2h0cmEiLCJzdGF0ZV9pZCI6InN0YXRlXzUxIiwiY2F0ZWdvcnlfaWQiOiJjYXRlZ29yeV8yOCIsImNpdHkiOiJQYXRhbGdhbmdhIiwiY2F0ZWdvcnlfbmFtZSI6IlBldHJvIENoZW1pY2FsIiwiaXNfZ2FuZ2EiOiJubyIsImFjdGlvbiI6WyJ2aWV3Il19fQ%3D%3D"
+    },
+    {
+        "industry_name": "Reliance Industries Limited - Vadodara",
+        "address": "P.O. Petrochemicals",
+        "city": "Vadodara",
+        "state_name": "Gujarat",
+        "category_name": "Petro Chemical",
+        "has_clickable_action": true,
+        "source_name": "Reliance Industries Limited",
+        "detail_page_url": "https://rtdms.cpcb.gov.in/publicdata/#/l/reports/average-report/eyJkYXRhIjp7ImluZHVzdHJ5X25hbWUiOiJSZWxpYW5jZSBJbmR1c3RyaWVzIExpbWl0ZWQgLSBWYWRvZGFyYSIsImluZHVzdHJ5X2lkIjoiaW5kdXN0cnlfOTAyIiwic3RhdGVfbmFtZSI6Ikd1amFyYXQiLCJzdGF0ZV9pZCI6InN0YXRlXzQ2IiwiY2F0ZWdvcnlfaWQiOiJjYXRlZ29yeV8yOCIsImNpdHkiOiJWYWRvZGFyYSIsImNhdGVnb3J5X25hbWUiOiJQZXRybyBDaGVtaWNhbCIsImlzX2dhbmdhIjoibm8iLCJhY3Rpb24iOlsidmlldyJdfX0%3D"
+    }
+]

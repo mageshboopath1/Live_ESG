@@ -1,0 +1,62 @@
+[
+    {
+        "industry_name": "Tata Motors Ltd",
+        "address": "Chinhat Industrial Area, Deva road, Lucknow",
+        "city": "LUCKNOW",
+        "state_name": "UP",
+        "category_name": "Others - Automobile",
+        "has_clickable_action": true,
+        "source_name": "Tata Motors Ltd",
+        "detail_page_url": "https://rtdms.cpcb.gov.in/publicdata/#/l/reports/average-report/eyJkYXRhIjp7ImluZHVzdHJ5X25hbWUiOiJUYXRhIE1vdG9ycyBMdGQiLCJpbmR1c3RyeV9pZCI6ImluZHVzdHJ5XzgxNjMiLCJzdGF0ZV9uYW1lIjoiVVAiLCJzdGF0ZV9pZCI6InN0YXRlXzQzIiwiY2F0ZWdvcnlfaWQiOiJjYXRlZ29yeV8zNiIsImNpdHkiOiJMVUNLTk9XIiwiY2F0ZWdvcnlfbmFtZSI6Ik90aGVycyAtIEF1dG9tb2JpbGUiLCJpc19nYW5nYSI6InllcyIsImFjdGlvbiI6WyJ2aWV3Il19fQ%3D%3D"
+    },
+    {
+        "industry_name": "Tata Motors Ltd.",
+        "address": "Plot No 1, Sector 11, IIE SIDCUL Pantnagar, Udham Singh Nagar, Uttarakhand",
+        "city": "Pantanagar",
+        "state_name": "Uttarakhand",
+        "category_name": "Others - Automobile",
+        "has_clickable_action": true,
+        "source_name": "Tata Motors Ltd",
+        "detail_page_url": "https://rtdms.cpcb.gov.in/publicdata/#/l/reports/average-report/eyJkYXRhIjp7ImluZHVzdHJ5X25hbWUiOiJUYXRhIE1vdG9ycyBMdGQuIiwiaW5kdXN0cnlfaWQiOiJpbmR1c3RyeV80MTc2Iiwic3RhdGVfbmFtZSI6IlV0dGFyYWtoYW5kIiwic3RhdGVfaWQiOiJzdGF0ZV82MiIsImNhdGVnb3J5X2lkIjoiY2F0ZWdvcnlfMzYiLCJjaXR5IjoiUGFudGFuYWdhciIsImNhdGVnb3J5X25hbWUiOiJPdGhlcnMgLSBBdXRvbW9iaWxlIiwiaXNfZ2FuZ2EiOiJ5ZXMiLCJhY3Rpb24iOlsidmlldyJdfX0%3D"
+    },
+    {
+        "industry_name": "Tata Motors Ltd.Chikhli",
+        "address": "Sector no 15 & 15 A ,Passenger car unit ,PCNTDA chikhli Tal: Haveli Dist : Pune 411062, Pune, Maharashtra-411062",
+        "city": "Pune",
+        "state_name": "Maharashtra",
+        "category_name": "Others - Automobile",
+        "has_clickable_action": true,
+        "source_name": "Tata Motors Ltd",
+        "detail_page_url": "https://rtdms.cpcb.gov.in/publicdata/#/l/reports/average-report/eyJkYXRhIjp7ImluZHVzdHJ5X25hbWUiOiJUYXRhIE1vdG9ycyBMdGQuQ2hpa2hsaSIsImluZHVzdHJ5X2lkIjoiaW5kdXN0cnlfODE3NSIsInN0YXRlX25hbWUiOiJNYWhhcmFzaHRyYSIsInN0YXRlX2lkIjoic3RhdGVfNTEiLCJjYXRlZ29yeV9pZCI6ImNhdGVnb3J5XzM2IiwiY2l0eSI6IlB1bmUiLCJjYXRlZ29yeV9uYW1lIjoiT3RoZXJzIC0gQXV0b21vYmlsZSIsImlzX2dhbmdhIjoibm8iLCJhY3Rpb24iOlsidmlldyJdfX0%3D"
+    },
+    {
+        "industry_name": "Tata Motors Ltd.Pimpri",
+        "address": "F1, MIDC, Pimpri,Pune, Maharashtra-411018",
+        "city": "Pune",
+        "state_name": "Maharashtra",
+        "category_name": "Others - Automobile",
+        "has_clickable_action": true,
+        "source_name": "Tata Motors Ltd",
+        "detail_page_url": "https://rtdms.cpcb.gov.in/publicdata/#/l/reports/average-report/eyJkYXRhIjp7ImluZHVzdHJ5X25hbWUiOiJUYXRhIE1vdG9ycyBMdGQuUGltcHJpIiwiaW5kdXN0cnlfaWQiOiJpbmR1c3RyeV84MTc2Iiwic3RhdGVfbmFtZSI6Ik1haGFyYXNodHJhIiwic3RhdGVfaWQiOiJzdGF0ZV81MSIsImNhdGVnb3J5X2lkIjoiY2F0ZWdvcnlfMzYiLCJjaXR5IjoiUHVuZSIsImNhdGVnb3J5X25hbWUiOiJPdGhlcnMgLSBBdXRvbW9iaWxlIiwiaXNfZ2FuZ2EiOiJubyIsImFjdGlvbiI6WyJ2aWV3Il19fQ%3D%3D"
+    },
+    {
+        "industry_name": "Tata Motors Limited",
+        "address": "Revenue Survey No-1,Village \u2013 Northkotpura,Taluka-Sanand, Dist.- Ahmedabad,PIN- 382170",
+        "city": "Ahmedabad",
+        "state_name": "Gujarat",
+        "category_name": "CETP",
+        "has_clickable_action": true,
+        "source_name": "Tata Motors Limited",
+        "detail_page_url": "https://rtdms.cpcb.gov.in/publicdata/#/l/reports/average-report/eyJkYXRhIjp7ImluZHVzdHJ5X25hbWUiOiJUYXRhIE1vdG9ycyBMaW1pdGVkIiwiaW5kdXN0cnlfaWQiOiJpbmR1c3RyeV81NjQ1Iiwic3RhdGVfbmFtZSI6Ikd1amFyYXQiLCJzdGF0ZV9pZCI6InN0YXRlXzQ2IiwiY2F0ZWdvcnlfaWQiOiJjYXRlZ29yeV8zNSIsImNpdHkiOiJBaG1lZGFiYWQiLCJjYXRlZ29yeV9uYW1lIjoiQ0VUUCIsImlzX2dhbmdhIjoibm8iLCJhY3Rpb24iOlsidmlldyJdfX0%3D"
+    },
+    {
+        "industry_name": "TATA MOTORS LIMITED",
+        "address": "Jamshedpur, Singbhum-east",
+        "city": "Jamshedpur",
+        "state_name": "Jharkhand",
+        "category_name": "Others - Automobile",
+        "has_clickable_action": true,
+        "source_name": "Tata Motors Limited",
+        "detail_page_url": "https://rtdms.cpcb.gov.in/publicdata/#/l/reports/average-report/eyJkYXRhIjp7ImluZHVzdHJ5X25hbWUiOiJUQVRBIE1PVE9SUyBMSU1JVEVEIiwiaW5kdXN0cnlfaWQiOiJpbmR1c3RyeV81NzY1Iiwic3RhdGVfbmFtZSI6IkpoYXJraGFuZCIsInN0YXRlX2lkIjoic3RhdGVfMzgiLCJjYXRlZ29yeV9pZCI6ImNhdGVnb3J5XzM2IiwiY2l0eSI6IkphbXNoZWRwdXIiLCJjYXRlZ29yeV9uYW1lIjoiT3RoZXJzIC0gQXV0b21vYmlsZSIsImlzX2dhbmdhIjoibm8iLCJhY3Rpb24iOlsidmlldyJdfX0%3D"
+    }
+]

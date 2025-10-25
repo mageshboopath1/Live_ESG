@@ -1,0 +1,6 @@
+selenium
+webdriver-manager
+pandas
+psycopg2-binary
+selenium-stealth
+sqlalchemy

@@ -1,0 +1,92 @@
+[
+    {
+        "industry_name": "Cipla Ltd",
+        "address": "Plot no. A-2, MIDC Patalganga, Tal. Khalapur, Dist. Raigad",
+        "city": "Raigad",
+        "state_name": "Maharashtra",
+        "category_name": "Pharma",
+        "has_clickable_action": false,
+        "source_name": "Cipla Ltd",
+        "detail_page_url": null
+    },
+    {
+        "industry_name": "Cipla Ltd",
+        "address": "Sy.No 30/1,30/2,30/3,30/4,31/1,31/2,39/2,40 Virgo nagar post, old madras road, Bangalore Urban.",
+        "city": "Bangalore",
+        "state_name": "Karnataka",
+        "category_name": "Pharma",
+        "has_clickable_action": false,
+        "source_name": "Cipla Ltd",
+        "detail_page_url": null
+    },
+    {
+        "industry_name": "Cipla Ltd.",
+        "address": "Plot No.- D-27, MIDC, Kurkumbh, Tal- Daund, Dist-Pune",
+        "city": "Pune",
+        "state_name": "Maharashtra",
+        "category_name": "Pharma",
+        "has_clickable_action": false,
+        "source_name": "Cipla Ltd",
+        "detail_page_url": null
+    },
+    {
+        "industry_name": "Cipla Ltd. Unit-1",
+        "address": "Plot No.- D-07, 08, MIDC, Kurkumbh, Tal- Daund, Dist-Pune",
+        "city": "Pune",
+        "state_name": "Maharashtra",
+        "category_name": "Pharma",
+        "has_clickable_action": false,
+        "source_name": "Cipla Ltd",
+        "detail_page_url": null
+    },
+    {
+        "industry_name": "Cipla Ltd. Unit-3",
+        "address": "Plot No.- D-22, MIDC, Kurkumbh, Tal- Daund, Dist-Pune",
+        "city": "Pune",
+        "state_name": "Maharashtra",
+        "category_name": "Pharma",
+        "has_clickable_action": false,
+        "source_name": "Cipla Ltd",
+        "detail_page_url": null
+    },
+    {
+        "industry_name": "M/s Cipla Ltd. Sikkim, Unit I",
+        "address": "Kumrek, PO - Rangpo,East Sikim 737132",
+        "city": "RANGPO",
+        "state_name": "Sikkim",
+        "category_name": "Others - Formulation",
+        "has_clickable_action": false,
+        "source_name": "Cipla Ltd",
+        "detail_page_url": null
+    },
+    {
+        "industry_name": "Cipla Limited",
+        "address": "Plot No. A-33, MIDC Patalganga, Raigad",
+        "city": "Raigad",
+        "state_name": "Maharashtra",
+        "category_name": "Pharma",
+        "has_clickable_action": false,
+        "source_name": "Cipla Limited",
+        "detail_page_url": null
+    },
+    {
+        "industry_name": "CIPLA LIMITED",
+        "address": "Plot No. 285, 285, 287, KIADB, IV Phase, Bommasandra-Jigani Link Road, Industrial Area. Bommasandra, Bangalore - 560105",
+        "city": "Bommasandra",
+        "state_name": "Karnataka",
+        "category_name": "Pharma",
+        "has_clickable_action": false,
+        "source_name": "Cipla Limited",
+        "detail_page_url": null
+    },
+    {
+        "industry_name": "Cipla Limited (Unit-II)",
+        "address": "Plot No. A-42, MIDC Patalganga, Raigad-410220",
+        "city": "Raigad",
+        "state_name": "Maharashtra",
+        "category_name": "Pharma",
+        "has_clickable_action": false,
+        "source_name": "Cipla Limited",
+        "detail_page_url": null
+    }
+]

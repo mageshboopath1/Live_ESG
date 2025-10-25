@@ -1,0 +1,22 @@
+[
+    {
+        "industry_name": "Nestle India Limited",
+        "address": "\"Post Box: 11, Ludhiana-Ferozepur Road MOGA \u2013 142001 (Punjab) INDIA\"",
+        "city": "LUDHIANA",
+        "state_name": "Punjab",
+        "category_name": "Food Dairy and Beverage",
+        "has_clickable_action": false,
+        "source_name": "Nestle India Limited",
+        "detail_page_url": null
+    },
+    {
+        "industry_name": "Nestle India Limited (Unit I and II)",
+        "address": "Pattikalyana, Kiwana Road, Panipat, Haryana-132101",
+        "city": "Panipat",
+        "state_name": "Haryana",
+        "category_name": "Food Dairy and Beverage",
+        "has_clickable_action": false,
+        "source_name": "Nestle India Limited",
+        "detail_page_url": null
+    }
+]

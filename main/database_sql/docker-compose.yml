@@ -1,0 +1,129 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: esg_db
+    restart: always
+    environment:
+      POSTGRES_DB: esg_data
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./esg_database.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+
+  api:
+    build: ./api
+    container_name: esg_api
+    restart: always
+    depends_on:
+      - db
+      - message_broker
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_DB: esg_data
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      DB_HOST: db
+      RABBITMQ_HOST: message_broker
+      RABBITMQ_USER: user
+      RABBITMQ_PASS: password
+    networks:
+      - app_network
+  
+  scheduler:
+    build: ./scheduler
+    container_name: esg_scheduler
+    restart: always
+    depends_on:
+      - api
+      - message_broker
+    environment:
+      - RABBITMQ_HOST=message_broker
+      - RABBITMQ_USER=user
+      - RABBITMQ_PASS=password
+    networks:
+      - app_network
+      
+  message_broker:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq_broker
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=user
+      - RABBITMQ_DEFAULT_PASS=password
+    networks:
+      - app_network
+
+  live_pollution_scraper:
+      build: ./live_pollution_scraper
+      container_name: pollution_scraper
+      restart: always
+      shm_size: '2gb' # <-- ADD THIS LINE
+      depends_on:
+        - message_broker
+      environment:
+        - RABBITMQ_HOST=message_broker
+        - RABBITMQ_USER=user
+        - RABBITMQ_PASS=password
+      networks:
+        - app_network
+
+  mongodb_service:
+      build: ./mongodb_service  # Specifies the directory with the Dockerfile
+      container_name: mongodb_processor
+      restart: always
+      depends_on:
+        - message_broker  # This service depends on RabbitMQ to be running
+      environment:
+        # Pass RabbitMQ connection details
+        - RABBITMQ_HOST=message_broker
+        - RABBITMQ_USER=user
+        - RABBITMQ_PASS=password
+        # Add MongoDB connection details
+        - MONGO_URI=mongodb://mongo_db:27017/
+        - MONGO_DB=esg_data
+      networks:
+        - app_network
+
+  mongo_db:
+    image: mongo:latest
+    container_name: esg_mongo_db
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - app_network
+
+  live_pollution_api:
+    build: ./live_pollution_api
+    container_name: pollution_data_api
+    restart: always
+    depends_on:
+      - mongo_db           # Ensures MongoDB is running before the API starts
+    ports:
+      - "8001:8001"        # Exposes the FastAPI service on port 8001
+    environment:
+      # Pass MongoDB connection details, using the internal service name 'mongo_db'
+      - MONGO_URI=mongodb://mongo_db:27017/ 
+      - MONGO_DB=esg_data
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mongo_data:
