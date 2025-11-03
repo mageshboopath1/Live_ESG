@@ -1,0 +1,1485 @@
+# Design Document
+
+## Overview
+
+The ESG Intelligence Platform is a microservices-based system that provides transparent ESG analysis through automated document ingestion, AI-powered indicator extraction, and interactive visualization. The platform uses Google GenAI with LangChain for intelligent extraction, PostgreSQL with pgvector for semantic search, and Vue 3 for a modern, transparent frontend experience.
+
+**Key Design Principles:**
+- **Transparency (Glassbox)**: Every data point is traceable to its source with PDF citations and page numbers
+- **Scalability**: Microservices architecture with asynchronous processing via RabbitMQ
+- **Accuracy**: LangChain-based RAG (Retrieval-Augmented Generation) with confidence scoring
+- **Modularity**: Independent services for catalog, ingestion, embeddings, extraction, and API
+
+## Architecture
+
+### High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Frontend Layer                           │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  Vue 3 + Composition API + TypeScript (Bun)              │   │
+│  │  - Company Dashboards                                     │   │
+│  │  - Score Visualization                                    │   │
+│  │  - Source Citation Viewer                                 │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ REST API
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         API Gateway Layer                        │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  FastAPI Gateway                                          │   │
+│  │  - Authentication & Authorization                         │   │
+│  │  - Request Routing                                        │   │
+│  │  - Response Aggregation                                   │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+        ▼                     ▼                     ▼
+┌──────────────┐    ┌──────────────────┐    ┌──────────────┐
+│   Company    │    │    Ingestion     │    │  Extraction  │
+│   Catalog    │    │    Service       │    │   Service    │
+│   Service    │    │                  │    │              │
+└──────────────┘    └──────────────────┘    └──────────────┘
+        │                     │                     │
+        │                     ▼                     │
+        │            ┌──────────────────┐           │
+        │            │   Embeddings     │           │
+        │            │    Service       │           │
+        │            │  (Google GenAI)  │           │
+        │            └──────────────────┘           │
+        │                     │                     │
+        └─────────────────────┼─────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      Data & Storage Layer                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │  PostgreSQL  │  │   RabbitMQ   │  │  MinIO (S3-compat)   │  │
+│  │  + pgvector  │  │  Message     │  │  Object Storage      │  │
+│  │              │  │  Queue       │  │                      │  │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Service Communication Flow
+
+1. **Company Catalog Service** → Syncs NIFTY 50 companies → PostgreSQL
+2. **Ingestion Service** → Downloads PDFs → MinIO → Publishes to RabbitMQ
+3. **Embeddings Service** → Consumes from RabbitMQ → Generates embeddings → PostgreSQL
+4. **Extraction Service** → Retrieves embeddings → LangChain + GenAI → Extracts indicators → PostgreSQL
+5. **API Gateway** → Aggregates data → Serves to Frontend
+6. **Frontend** → Displays dashboards → Shows source citations
+
+## Components and Interfaces
+
+### 1. Company Catalog Service
+
+**Technology**: Python, SQLAlchemy, Pandas, UV (dependency management)
+
+**Responsibilities**:
+- Fetch NIFTY 50 company list from NSE
+- Sync company data to PostgreSQL
+- Maintain company metadata (name, symbol, ISIN, industry)
+
+**Dependency Management**:
+- Use UV for all Python package management
+- Define dependencies in `pyproject.toml`
+- Use `uv sync` for reproducible builds
+- Run service with `uv run python main.py`
+
+**Database Schema**:
+```sql
+CREATE TABLE company_catalog (
+    id SERIAL PRIMARY KEY,
+    company_name TEXT NOT NULL,
+    industry TEXT,
+    symbol TEXT NOT NULL,
+    series TEXT,
+    isin_code TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(symbol, isin_code)
+);
+```
+
+**API Endpoints**: None (batch sync service)
+
+### 2. Document Ingestion Service
+
+**Technology**: Python, Requests, Boto3 (MinIO), Pika (RabbitMQ), UV (dependency management)
+
+**Responsibilities**:
+- Fetch report URLs for each company
+- Download PDF reports from sources
+- Upload PDFs to MinIO with structured Object Keys
+- Publish embedding tasks to RabbitMQ
+- Track ingestion metadata
+
+**Dependency Management**:
+- Use UV for package management
+- Define dependencies in `pyproject.toml`
+- Use `uv sync` for reproducible builds
+
+**Object Key Format**: `{company_name}/{year}_{report_type}.pdf`
+
+**Database Schema**:
+```sql
+CREATE TABLE ingestion_metadata (
+    id SERIAL PRIMARY KEY,
+    company_id INT REFERENCES company_catalog(id),
+    source TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_type TEXT NOT NULL,
+    ingested_at TIMESTAMP DEFAULT NOW(),
+    status TEXT DEFAULT 'SUCCESS',
+    UNIQUE(company_id, source, file_path)
+);
+```
+
+**RabbitMQ Integration**:
+- Queue: `embedding-tasks`
+- Message: Object Key (string)
+- Durability: Enabled
+- Retry: Exponential backoff
+
+### 3. Embeddings Service
+
+**Technology**: Python, PyMuPDF, Google GenAI, psycopg2, Boto3, UV (dependency management)
+
+**Responsibilities**:
+- Consume embedding tasks from RabbitMQ
+- Download PDFs from MinIO
+- Extract text and split into chunks (1000-2000 chars)
+- Generate embeddings using Google Gemini (gemini-embedding-001)
+- Store embeddings in PostgreSQL with pgvector
+
+**Dependency Management**:
+- Use UV for package management
+- Define dependencies in `pyproject.toml`
+- Use `uv sync` for reproducible builds
+
+**Chunking Strategy**:
+- Chunk size: 1000-2000 characters
+- Overlap: 200 characters
+- Preserve sentence boundaries
+- Track page numbers and chunk indices
+
+**Database Schema**:
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE document_embeddings (
+    id SERIAL PRIMARY KEY,
+    object_key TEXT NOT NULL,
+    company_name TEXT NOT NULL,
+    report_year INT NOT NULL,
+    page_number INT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    embedding VECTOR(3072),
+    chunk_text TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    INDEX idx_object_key (object_key),
+    INDEX idx_company_year (company_name, report_year)
+);
+```
+
+**Google GenAI Integration**:
+```python
+from google import genai
+
+client = genai.Client(api_key=GOOGLE_API_KEY)
+result = client.models.embed_content(
+    model="gemini-embedding-001",
+    contents=chunks
+)
+embeddings = result.embeddings
+```
+
+### 4. Extraction Service (NEW)
+
+**Technology**: Python, LangChain, Google GenAI, psycopg2, pgvector, UV (dependency management)
+
+**Responsibilities**:
+- Retrieve relevant chunks using vector similarity search
+- Build LangChain RAG pipeline for indicator extraction
+- Extract BRSR Core indicators with structured output
+- Calculate confidence scores
+- Store extracted indicators with source citations
+
+**Dependency Management**:
+- Use UV for package management
+- Define dependencies in `pyproject.toml`
+- Use `uv sync` for reproducible builds
+
+**Database Schema**:
+```sql
+CREATE TABLE brsr_indicators (
+    id SERIAL PRIMARY KEY,
+    indicator_code TEXT NOT NULL,
+    attribute_number INT NOT NULL,
+    parameter_name TEXT NOT NULL,
+    measurement_unit TEXT,
+    description TEXT,
+    pillar TEXT CHECK (pillar IN ('E', 'S', 'G')),
+    weight DECIMAL(5,4),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE extracted_indicators (
+    id SERIAL PRIMARY KEY,
+    object_key TEXT NOT NULL,
+    company_id INT REFERENCES company_catalog(id),
+    report_year INT NOT NULL,
+    indicator_id INT REFERENCES brsr_indicators(id),
+    extracted_value TEXT NOT NULL,
+    numeric_value DECIMAL,
+    confidence_score DECIMAL(3,2),
+    validation_status TEXT CHECK (validation_status IN ('valid', 'invalid', 'pending')),
+    source_pages INT[],
+    source_chunk_ids INT[],
+    extracted_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(object_key, indicator_id)
+);
+
+CREATE TABLE esg_scores (
+    id SERIAL PRIMARY KEY,
+    company_id INT REFERENCES company_catalog(id),
+    report_year INT NOT NULL,
+    environmental_score DECIMAL(5,2),
+    social_score DECIMAL(5,2),
+    governance_score DECIMAL(5,2),
+    overall_score DECIMAL(5,2),
+    calculation_metadata JSONB,
+    calculated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(company_id, report_year)
+);
+```
+
+**LangChain Architecture**:
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain.chains import RetrievalQA
+from langchain.vectorstores.pgvector import PGVector
+from langchain.prompts import PromptTemplate
+from langchain.output_parsers import PydanticOutputParser
+from pydantic import BaseModel, Field
+from typing import Optional, List
+
+# Define structured output schema
+class BRSRIndicator(BaseModel):
+    indicator_code: str
+    value: str
+    numeric_value: Optional[float]
+    unit: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    source_pages: List[int]
+
+# Custom retriever with company and year filtering
+class FilteredPGVectorRetriever:
+    def __init__(self, connection_string: str, company_name: str, report_year: int):
+        self.connection_string = connection_string
+        self.company_name = company_name
+        self.report_year = report_year
+        self.embedding_function = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
+        
+    def get_relevant_documents(self, query: str, k: int = 5):
+        """Retrieve documents filtered by company and year"""
+        # Generate query embedding
+        query_embedding = self.embedding_function.embed_query(query)
+        
+        # SQL query with filtering and vector similarity
+        sql = """
+        SELECT 
+            id, object_key, company_name, report_year, 
+            page_number, chunk_index, chunk_text,
+            embedding <=> %s::vector AS distance
+        FROM document_embeddings
+        WHERE company_name = %s 
+          AND report_year = %s
+        ORDER BY embedding <=> %s::vector
+        LIMIT %s
+        """
+        
+        with psycopg2.connect(self.connection_string) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (
+                    query_embedding, 
+                    self.company_name, 
+                    self.report_year,
+                    query_embedding,
+                    k
+                ))
+                results = cur.fetchall()
+        
+        # Convert to LangChain Document format
+        from langchain.schema import Document
+        documents = [
+            Document(
+                page_content=row[6],  # chunk_text
+                metadata={
+                    "id": row[0],
+                    "object_key": row[1],
+                    "company_name": row[2],
+                    "report_year": row[3],
+                    "page_number": row[4],
+                    "chunk_index": row[5],
+                    "distance": float(row[7])
+                }
+            )
+            for row in results
+        ]
+        return documents
+
+# Initialize retriever with filtering
+def create_extraction_chain(company_name: str, report_year: int):
+    retriever = FilteredPGVectorRetriever(
+        connection_string=DB_CONNECTION,
+        company_name=company_name,
+        report_year=report_year
+    )
+    
+    # LLM for extraction
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        temperature=0.1
+    )
+    
+    # Prompt template
+    prompt = PromptTemplate(
+        template="""Extract the following BRSR Core indicator from the context:
+        
+Indicator: {indicator_name}
+Description: {indicator_description}
+Expected Unit: {expected_unit}
+
+Context from {company_name} {report_year} report:
+{context}
+
+Extract the value and provide:
+1. The exact value found
+2. Numeric value if applicable
+3. Confidence score (0.0-1.0)
+4. Page numbers where found
+
+{format_instructions}
+""",
+        input_variables=["indicator_name", "indicator_description", "expected_unit", "company_name", "report_year", "context"],
+        partial_variables={"format_instructions": PydanticOutputParser(pydantic_object=BRSRIndicator).get_format_instructions()}
+    )
+    
+    # Build chain
+    from langchain.chains.question_answering import load_qa_chain
+    chain = load_qa_chain(llm, chain_type="stuff", prompt=prompt)
+    
+    return chain, retriever
+
+# Usage example
+chain, retriever = create_extraction_chain("RELIANCE", 2024)
+docs = retriever.get_relevant_documents("Total Scope 1 emissions", k=5)
+result = chain.run(input_documents=docs, indicator_name="Total Scope 1 emissions", ...)
+```
+
+**Extraction Workflow**:
+1. Load BRSR Core indicator definitions
+2. Identify target company and report year from object_key
+3. Create filtered retriever for specific company and year
+4. For each indicator:
+   - Query vector store with company/year filter for relevant chunks (k=5-10)
+   - Build prompt with indicator schema and company context
+   - Execute LangChain chain with filtered documents
+   - Parse structured output
+   - Validate extracted value
+   - Store with source citations (page numbers, chunk IDs)
+5. Calculate pillar scores from extracted indicators
+6. Calculate overall ESG score with weighted aggregation
+
+**Performance Optimization**:
+- Filtering by company_name and report_year reduces search space from ~40k to ~200-500 embeddings per document
+- Use composite index on (company_name, report_year) for fast filtering
+- Consider creating separate vector indices per company for very large datasets
+
+### 5. API Gateway Service (NEW)
+
+**Technology**: Python, FastAPI, SQLAlchemy, UV (dependency management)
+
+**Responsibilities**:
+- Provide REST API for frontend
+- Aggregate data from multiple tables
+- Handle authentication and authorization
+- Serve company data, indicators, scores, and citations
+
+**Dependency Management**:
+- Use UV for package management
+- Define dependencies in `pyproject.toml`
+- Use `uv sync` for reproducible builds
+
+**API Endpoints**:
+
+```python
+# Companies
+GET /api/companies
+GET /api/companies/{company_id}
+GET /api/companies/search?q={query}
+
+# Reports
+GET /api/companies/{company_id}/reports
+GET /api/reports/{object_key}
+POST /api/reports/trigger-processing
+
+# Indicators
+GET /api/companies/{company_id}/indicators?year={year}
+GET /api/indicators/{indicator_id}
+GET /api/indicators/compare?companies={ids}&year={year}
+
+# Scores
+GET /api/companies/{company_id}/scores?year={year}
+GET /api/scores/breakdown/{company_id}/{year}
+
+# Citations
+GET /api/citations/{extracted_indicator_id}
+GET /api/documents/{object_key}/page/{page_number}
+```
+
+**Response Format Example**:
+```json
+{
+  "indicator": {
+    "id": 123,
+    "code": "GHG_SCOPE1",
+    "name": "Total Scope 1 emissions",
+    "value": "1250 MT CO2e",
+    "numeric_value": 1250.0,
+    "unit": "MT CO2e",
+    "confidence": 0.95,
+    "validation_status": "valid"
+  },
+  "citations": [
+    {
+      "pdf_name": "RELIANCE/2024_BRSR.pdf",
+      "pages": [45, 46],
+      "chunk_text": "Our total Scope 1 emissions for FY 2024 were 1,250 MT CO2e...",
+      "url": "/api/documents/RELIANCE/2024_BRSR.pdf/page/45"
+    }
+  ]
+}
+```
+
+### 6. Frontend Application (NEW)
+
+**Technology**: Vue 3, TypeScript, Bun, Vite
+
+**Project Structure**:
+```
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── CompanySearch.vue
+│   │   ├── CompanyDashboard.vue
+│   │   ├── IndicatorCard.vue
+│   │   ├── ScoreBreakdown.vue
+│   │   ├── CitationViewer.vue
+│   │   ├── PDFViewer.vue
+│   │   └── ComparisonView.vue
+│   ├── composables/
+│   │   ├── useCompanies.ts
+│   │   ├── useIndicators.ts
+│   │   ├── useScores.ts
+│   │   └── useCitations.ts
+│   ├── stores/
+│   │   ├── companyStore.ts
+│   │   └── uiStore.ts
+│   ├── types/
+│   │   ├── company.ts
+│   │   ├── indicator.ts
+│   │   └── score.ts
+│   ├── views/
+│   │   ├── HomeView.vue
+│   │   ├── CompanyView.vue
+│   │   ├── ComparisonView.vue
+│   │   └── ScoreView.vue
+│   ├── App.vue
+│   └── main.ts
+├── package.json
+├── tsconfig.json
+└── vite.config.ts
+```
+
+**Key Components**:
+
+1. **CompanyDashboard.vue**: Main dashboard showing all indicators organized by 9 BRSR attributes
+2. **ScoreBreakdown.vue**: Transparent visualization of score calculation with weights and sources
+3. **CitationViewer.vue**: Interactive component showing PDF citations with page numbers
+4. **PDFViewer.vue**: Embedded PDF viewer with highlighting for source text
+5. **ComparisonView.vue**: Side-by-side comparison of multiple companies
+
+**State Management**: Pinia for global state
+
+**UI Library**: Consider Vuetify, PrimeVue, or Naive UI for Vue 3
+
+**Composable Example**:
+```typescript
+// useIndicators.ts
+import { ref, computed } from 'vue'
+import type { Indicator, Citation } from '@/types'
+
+export function useIndicators(companyId: number, year: number) {
+  const indicators = ref<Indicator[]>([])
+  const loading = ref(false)
+  const error = ref<Error | null>(null)
+
+  const fetchIndicators = async () => {
+    loading.value = true
+    try {
+      const response = await fetch(`/api/companies/${companyId}/indicators?year=${year}`)
+      indicators.value = await response.json()
+    } catch (e) {
+      error.value = e as Error
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const indicatorsByAttribute = computed(() => {
+    return indicators.value.reduce((acc, ind) => {
+      const attr = ind.attribute_number
+      if (!acc[attr]) acc[attr] = []
+      acc[attr].push(ind)
+      return acc
+    }, {} as Record<number, Indicator[]>)
+  })
+
+  return {
+    indicators,
+    loading,
+    error,
+    fetchIndicators,
+    indicatorsByAttribute
+  }
+}
+```
+
+## Data Models
+
+### BRSR Core Indicator Model
+
+```python
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from enum import Enum
+
+class Pillar(str, Enum):
+    ENVIRONMENTAL = "E"
+    SOCIAL = "S"
+    GOVERNANCE = "G"
+
+class BRSRIndicatorDefinition(BaseModel):
+    indicator_code: str
+    attribute_number: int = Field(ge=1, le=9)
+    parameter_name: str
+    measurement_unit: Optional[str]
+    description: str
+    pillar: Pillar
+    weight: float = Field(ge=0.0, le=1.0)
+    data_assurance_approach: str
+    brsr_reference: str
+
+class ExtractedIndicator(BaseModel):
+    object_key: str
+    company_id: int
+    report_year: int
+    indicator_id: int
+    extracted_value: str
+    numeric_value: Optional[float]
+    confidence_score: float = Field(ge=0.0, le=1.0)
+    validation_status: str
+    source_pages: List[int]
+    source_chunk_ids: List[int]
+
+class ESGScore(BaseModel):
+    company_id: int
+    report_year: int
+    environmental_score: float
+    social_score: float
+    governance_score: float
+    overall_score: float
+    calculation_metadata: dict
+```
+
+### Frontend TypeScript Types
+
+```typescript
+// types/indicator.ts
+export interface Indicator {
+  id: number
+  code: string
+  name: string
+  value: string
+  numericValue?: number
+  unit: string
+  confidence: number
+  validationStatus: 'valid' | 'invalid' | 'pending'
+  attributeNumber: number
+  pillar: 'E' | 'S' | 'G'
+}
+
+export interface Citation {
+  pdfName: string
+  pages: number[]
+  chunkText: string
+  url: string
+}
+
+export interface Score {
+  environmental: number
+  social: number
+  governance: number
+  overall: number
+  breakdown: ScoreBreakdown
+}
+
+export interface ScoreBreakdown {
+  pillars: {
+    name: string
+    score: number
+    weight: number
+    indicators: {
+      code: string
+      value: number
+      weight: number
+      citations: Citation[]
+    }[]
+  }[]
+}
+```
+
+## Error Handling
+
+### Service-Level Error Handling
+
+1. **Ingestion Service**:
+   - Network errors: Retry with exponential backoff (max 3 attempts)
+   - Invalid PDFs: Log error, mark status as 'FAILED', skip
+   - MinIO errors: Retry upload, alert on persistent failures
+
+2. **Embeddings Service**:
+   - Text extraction failures: Log warning, skip document
+   - API rate limits: Implement backoff, queue for retry
+   - Database errors: Rollback transaction, requeue task
+
+3. **Extraction Service**:
+   - LLM API errors: Retry with exponential backoff
+   - Parsing errors: Log raw output, mark indicator as 'pending'
+   - Validation failures: Store with 'invalid' status, flag for review
+   - Vector search failures: Fall back to keyword search
+
+4. **API Gateway**:
+   - 400 Bad Request: Invalid parameters
+   - 404 Not Found: Resource doesn't exist
+   - 500 Internal Server Error: Log stack trace, return generic message
+   - 503 Service Unavailable: Downstream service failure
+
+### Frontend Error Handling
+
+```typescript
+// Error boundary for components
+const handleError = (error: Error) => {
+  console.error('Component error:', error)
+  toast.error('An error occurred. Please try again.')
+}
+
+// API error handling
+const fetchWithErrorHandling = async (url: string) => {
+  try {
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    handleError(error as Error)
+    throw error
+  }
+}
+```
+
+## Development Workflow
+
+### Local Development Setup
+
+1. **Prerequisites**:
+   - Docker and Docker Compose installed
+   - UV installed (for local Python development)
+   - Bun installed (for frontend development)
+
+2. **Initial Setup**:
+   ```bash
+   # Clone repository
+   git clone <repo-url>
+   cd esg-intelligence-platform
+   
+   # Copy environment template
+   cp .env.example .env
+   
+   # Edit .env with your API keys and passwords
+   nano .env
+   
+   # Start all services
+   docker-compose up -d
+   ```
+
+3. **Working on Python Services**:
+   ```bash
+   # Navigate to service directory
+   cd services/embeddings
+   
+   # Install dependencies with UV
+   uv sync
+   
+   # Run locally (connects to Docker services)
+   uv run python main.py
+   
+   # Run tests
+   uv run pytest
+   
+   # Format code
+   uv run black .
+   uv run ruff check .
+   ```
+
+4. **Working on Frontend**:
+   ```bash
+   cd frontend
+   
+   # Install dependencies
+   bun install
+   
+   # Run dev server
+   bun run dev
+   
+   # Run tests
+   bun test
+   
+   # Build for production
+   bun run build
+   ```
+
+5. **Hot-Reload Development**:
+   ```bash
+   # Use dev compose file for hot-reloading
+   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+   
+   # Services will automatically reload on code changes
+   ```
+
+### Adding Dependencies
+
+**Python Services**:
+```bash
+cd services/<service-name>
+
+# Add a dependency
+uv add <package-name>
+
+# Add a dev dependency
+uv add --dev <package-name>
+
+# Update lockfile
+uv lock
+
+# Rebuild Docker image
+docker-compose build <service-name>
+```
+
+**Frontend**:
+```bash
+cd frontend
+
+# Add a dependency
+bun add <package-name>
+
+# Add a dev dependency
+bun add -d <package-name>
+
+# Rebuild Docker image
+docker-compose build frontend
+```
+
+### Database Migrations
+
+```bash
+# Access PostgreSQL
+docker-compose exec postgres psql -U esg_user -d esg_platform
+
+# Run migration scripts
+docker-compose exec postgres psql -U esg_user -d esg_platform -f /docker-entrypoint-initdb.d/migration.sql
+
+# Backup database
+docker-compose exec postgres pg_dump -U esg_user esg_platform > backup.sql
+```
+
+### Debugging
+
+**View Logs**:
+```bash
+# All services
+docker-compose logs -f
+
+# Specific service
+docker-compose logs -f embeddings
+
+# Last 100 lines
+docker-compose logs --tail=100 extraction
+```
+
+**Access Service Shell**:
+```bash
+# Python service
+docker-compose exec embeddings /bin/bash
+
+# Check UV environment
+docker-compose exec embeddings uv pip list
+```
+
+**Access Admin Interfaces**:
+- RabbitMQ Management: http://localhost:15672
+- MinIO Console: http://localhost:9001
+- PgAdmin: http://localhost:5050
+
+## Testing Strategy
+
+### Unit Tests
+
+1. **Embeddings Service**:
+   - Test chunking logic with various text sizes
+   - Mock Google GenAI API responses
+   - Test database insertion logic
+
+2. **Extraction Service**:
+   - Test LangChain chain construction
+   - Mock vector store retrieval
+   - Test Pydantic model validation
+   - Test score calculation algorithms
+
+3. **API Gateway**:
+   - Test endpoint routing
+   - Test request validation
+   - Test response formatting
+   - Mock database queries
+
+4. **Frontend**:
+   - Test composables with mock data
+   - Test component rendering
+   - Test user interactions
+   - Test state management
+
+### Integration Tests
+
+1. **End-to-End Ingestion**:
+   - Upload PDF → Generate embeddings → Verify in database
+
+2. **Extraction Pipeline**:
+   - Query embeddings → Extract indicators → Verify citations
+
+3. **API Integration**:
+   - Test API endpoints with real database
+   - Test authentication flow
+   - Test data aggregation
+
+4. **Frontend Integration**:
+   - Test API calls from components
+   - Test navigation flow
+   - Test data display
+
+### Testing Tools
+
+- **Backend**: pytest, pytest-asyncio, unittest.mock
+- **Frontend**: Vitest, Vue Test Utils, Playwright (E2E)
+- **API**: pytest-httpx, FastAPI TestClient
+- **Database**: pytest-postgresql, factory_boy
+
+## Performance Considerations
+
+### Database Optimization
+
+1. **Indexing**:
+   - Composite index on `(company_name, report_year)` for filtered retrieval (CRITICAL)
+   - Index on `object_key` for document lookups
+   - Index on `indicator_id`, `company_id` for extraction queries
+   - pgvector index for similarity search (IVFFlat or HNSW)
+   
+   ```sql
+   CREATE INDEX idx_company_year ON document_embeddings(company_name, report_year);
+   CREATE INDEX idx_object_key ON document_embeddings(object_key);
+   CREATE INDEX idx_embedding_vector ON document_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+   ```
+
+2. **Query Optimization**:
+   - Use connection pooling (pgbouncer)
+   - Implement query result caching (Redis)
+   - Use materialized views for score aggregations
+   - Always filter by company_name and report_year before vector search
+
+3. **Vector Search**:
+   - Tune pgvector parameters (lists, probes)
+   - Use filtered vector search: `WHERE company_name = ? AND report_year = ? ORDER BY embedding <=> ?`
+   - This reduces search space from 40k+ to ~200-500 embeddings per query
+   - Consider HNSW index for better performance with filtering
+   - Batch vector queries when possible
+
+### API Performance
+
+1. **Caching**:
+   - Cache company data (TTL: 1 hour)
+   - Cache indicator definitions (TTL: 24 hours)
+   - Cache calculated scores (TTL: 1 hour)
+
+2. **Pagination**:
+   - Implement cursor-based pagination for large result sets
+   - Default page size: 50 items
+
+3. **Response Optimization**:
+   - Use field selection (sparse fieldsets)
+   - Implement response compression (gzip)
+   - Use HTTP/2 for multiplexing
+
+### Frontend Performance
+
+1. **Code Splitting**:
+   - Lazy load routes
+   - Lazy load heavy components (PDF viewer)
+
+2. **Data Fetching**:
+   - Implement request deduplication
+   - Use SWR (stale-while-revalidate) pattern
+   - Prefetch data on hover
+
+3. **Rendering**:
+   - Virtualize long lists
+   - Debounce search inputs
+   - Use web workers for heavy computations
+
+## Security Considerations
+
+1. **API Security**:
+   - Implement JWT-based authentication
+   - Rate limiting per API key
+   - Input validation and sanitization
+   - CORS configuration
+
+2. **Data Security**:
+   - Encrypt sensitive data at rest
+   - Use parameterized queries (prevent SQL injection)
+   - Implement row-level security in PostgreSQL
+
+3. **Frontend Security**:
+   - Sanitize user inputs
+   - Implement CSP (Content Security Policy)
+   - Use HTTPS only
+   - Secure cookie settings
+
+## Deployment Architecture
+
+### Docker Compose Services
+
+```yaml
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/db-init:/docker-entrypoint-initdb.d
+    networks:
+      - esg-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - esg-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - esg-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    
+  company-catalog:
+    build:
+      context: ./services/company-catalog
+      dockerfile: Dockerfile
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - esg-network
+    restart: unless-stopped
+    
+  ingestion:
+    build:
+      context: ./services/ingestion
+      dockerfile: Dockerfile
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_PASS: ${RABBITMQ_DEFAULT_PASS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - esg-network
+    restart: unless-stopped
+    
+  embeddings:
+    build:
+      context: ./services/embeddings
+      dockerfile: Dockerfile
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_PASS: ${RABBITMQ_DEFAULT_PASS}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - esg-network
+    restart: unless-stopped
+    
+  extraction:
+    build:
+      context: ./services/extraction
+      dockerfile: Dockerfile
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - esg-network
+    restart: unless-stopped
+    
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    networks:
+      - esg-network
+    restart: unless-stopped
+    
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_BASE_URL: http://api-gateway:8000
+    depends_on:
+      - api-gateway
+    ports:
+      - "3000:3000"
+    networks:
+      - esg-network
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@esg.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "5050:80"
+    networks:
+      - esg-network
+    depends_on:
+      - postgres
+
+networks:
+  esg-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:
+  rabbitmq_data:
+```
+
+### Docker Compose for Development
+
+For development, use a separate `docker-compose.dev.yml` with volume mounts for hot-reloading:
+
+```yaml
+version: '3.8'
+
+services:
+  company-catalog:
+    volumes:
+      - ./services/company-catalog:/app
+    command: uv run python -m watchdog main.py
+    
+  ingestion:
+    volumes:
+      - ./services/ingestion:/app
+    command: uv run python -m watchdog main.py
+    
+  embeddings:
+    volumes:
+      - ./services/embeddings:/app
+    command: uv run python -m watchdog main.py
+    
+  extraction:
+    volumes:
+      - ./services/extraction:/app
+    command: uv run python -m watchdog main.py
+    
+  api-gateway:
+    volumes:
+      - ./services/api-gateway:/app
+    command: uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    
+  frontend:
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: bun run dev --host
+```
+
+**Usage**:
+```bash
+# Production
+docker-compose up -d
+
+# Development with hot-reload
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
+
+### Dockerfile Structure for Python Services
+
+All Python services use a standardized multi-stage Dockerfile with UV:
+
+```dockerfile
+# Stage 1: Build stage with UV
+FROM python:3.11-slim as builder
+
+# Install UV
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies using UV
+RUN uv sync --frozen --no-dev
+
+# Stage 2: Runtime stage
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy UV and virtual environment from builder
+COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy application code
+COPY . .
+
+# Set environment to use the virtual environment
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Run the application using UV
+CMD ["uv", "run", "python", "main.py"]
+```
+
+**Key Benefits**:
+- Multi-stage build reduces final image size
+- UV provides fast, reproducible dependency resolution
+- Frozen lockfile ensures consistent builds
+- Virtual environment isolation
+
+### Dockerfile for Frontend (Bun)
+
+```dockerfile
+# Stage 1: Build stage
+FROM oven/bun:1 as builder
+
+WORKDIR /app
+
+# Copy dependency files
+COPY package.json bun.lockb ./
+
+# Install dependencies
+RUN bun install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN bun run build
+
+# Stage 2: Runtime stage with nginx
+FROM nginx:alpine
+
+# Copy built assets from builder
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+### Environment Variables
+
+```bash
+# Database
+POSTGRES_DB=esg_platform
+POSTGRES_USER=esg_user
+POSTGRES_PASSWORD=<secure_password>
+DB_HOST=postgres
+
+# MinIO
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=<secure_password>
+MINIO_ENDPOINT=http://minio:9000
+BUCKET_NAME=esg-reports
+
+# RabbitMQ
+RABBITMQ_DEFAULT_USER=rabbitmq
+RABBITMQ_DEFAULT_PASS=<secure_password>
+RABBITMQ_HOST=rabbitmq
+
+# Google GenAI
+GOOGLE_API_KEY=<your_api_key>
+
+# API
+API_BASE_URL=http://api-gateway:8000
+JWT_SECRET=<secure_secret>
+
+# PgAdmin
+PGADMIN_EMAIL=admin@esg.local
+PGADMIN_PASSWORD=<secure_password>
+```
+
+## Project Structure
+
+```
+esg-intelligence-platform/
+├── docker-compose.yml
+├── docker-compose.dev.yml
+├── .env
+├── .env.example
+├── infra/
+│   └── db-init/
+│       ├── 01-init.sql
+│       └── 02-seed-brsr.sql
+├── services/
+│   ├── company-catalog/
+│   │   ├── Dockerfile
+│   │   ├── pyproject.toml
+│   │   ├── uv.lock
+│   │   ├── main.py
+│   │   └── src/
+│   ├── ingestion/
+│   │   ├── Dockerfile
+│   │   ├── pyproject.toml
+│   │   ├── uv.lock
+│   │   ├── main.py
+│   │   └── src/
+│   ├── embeddings/
+│   │   ├── Dockerfile
+│   │   ├── pyproject.toml
+│   │   ├── uv.lock
+│   │   ├── main.py
+│   │   └── src/
+│   ├── extraction/
+│   │   ├── Dockerfile
+│   │   ├── pyproject.toml
+│   │   ├── uv.lock
+│   │   ├── main.py
+│   │   └── src/
+│   └── api-gateway/
+│       ├── Dockerfile
+│       ├── pyproject.toml
+│       ├── uv.lock
+│       ├── main.py
+│       └── src/
+└── frontend/
+    ├── Dockerfile
+    ├── nginx.conf
+    ├── package.json
+    ├── bun.lockb
+    ├── vite.config.ts
+    ├── tsconfig.json
+    └── src/
+```
+
+### Python Service pyproject.toml Example
+
+```toml
+[project]
+name = "esg-embeddings-service"
+version = "0.1.0"
+description = "ESG Platform Embeddings Service"
+requires-python = ">=3.11"
+dependencies = [
+    "psycopg2-binary>=2.9.9",
+    "google-generativeai>=0.3.0",
+    "pymupdf>=1.23.0",
+    "boto3>=1.34.0",
+    "pika>=1.3.2",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+]
+```
+
+## Migration Path
+
+### Phase 1: Core Infrastructure (Current)
+- ✅ Company catalog service
+- ✅ Document ingestion service
+- ✅ Embeddings service with Google GenAI
+- ✅ PostgreSQL with pgvector
+- ✅ MinIO and RabbitMQ setup
+- ✅ Docker Compose orchestration
+
+### Phase 2: Extraction Service (Next)
+- Implement BRSR Core indicator definitions
+- Build LangChain RAG pipeline with UV dependencies
+- Implement extraction service with Docker
+- Add source citation tracking
+- Implement score calculation
+
+### Phase 3: API Gateway
+- Build FastAPI gateway with UV
+- Implement authentication
+- Create all API endpoints
+- Add caching layer
+- Dockerize API service
+
+### Phase 4: Frontend
+- Setup Vue 3 + Bun project
+- Build core components
+- Implement company dashboard
+- Add score visualization
+- Build citation viewer
+- Implement PDF viewer
+- Dockerize frontend with nginx
+
+### Phase 5: Optimization & Production
+- Performance tuning
+- Security hardening
+- Monitoring and logging
+- Production deployment with Docker Swarm or Kubernetes
+</secure_password>

@@ -1,0 +1,310 @@
+# Requirements Document
+
+## Introduction
+
+The ESG Intelligence Platform is an automated system that ingests, processes, and analyzes company sustainability disclosures (BRSR reports, annual reports, CRISIL data) to extract standardized ESG indicators, generate insights, and support scoring and benchmarking capabilities. The platform processes PDF documents, converts them to structured data with embeddings, and uses Google GenAI with LangChain for LLM-based extraction to identify specific ESG metrics from the BRSR Core framework.
+
+**Current Implementation Status:**
+- Company Catalog Service: Syncs NIFTY 50 companies from NSE
+- Document Ingestion Service: Fetches and downloads company reports
+- Embeddings Service: Generates embeddings using Google Gemini (gemini-embedding-001) and stores in PostgreSQL with pgvector
+- Database: PostgreSQL with tables for company_catalog, ingestion_metadata, and document_embeddings
+- Infrastructure: Docker-based with MinIO (S3-compatible storage), RabbitMQ, PostgreSQL, and PgAdmin
+
+## Glossary
+
+- **Platform**: The ESG Intelligence Platform system
+- **Company Catalog Service**: Service that syncs NIFTY 50 company data from NSE
+- **Document Ingestion Service**: Service responsible for fetching and downloading PDF reports from company sources
+- **Embeddings Service**: Service that generates semantic embeddings using Google Gemini embedding model
+- **Extraction Service**: LLM-based service using Google GenAI and LangChain that identifies and extracts BRSR Core indicators
+- **Storage System**: PostgreSQL database with pgvector extension and MinIO object storage
+- **Message Queue**: RabbitMQ message broker for asynchronous task processing with durable queues
+- **BRSR Core**: Business Responsibility and Sustainability Report Core framework with 9 attributes and ~50 indicators
+- **ESG Indicator**: A standardized environmental, social, or governance metric from BRSR Core
+- **Chunk**: A segment of text (1,000-2,000 characters) used for embedding generation
+- **Vector Similarity Search**: Semantic search using pgvector extension to find relevant text chunks
+- **Object Key**: Unique identifier for documents stored in MinIO (format: company_name/year_reporttype.pdf)
+- **Google GenAI**: Google's Generative AI API used for embeddings (gemini-embedding-001) and extraction (gemini-2.5-flash)
+- **LangChain**: Framework for building LLM applications with structured output and retrieval chains
+- **UV**: Fast Python package installer and resolver used for dependency management across all Python services
+- **Docker**: Containerization platform used to package and deploy all platform services
+- **Docker Compose**: Tool for defining and running multi-container Docker applications
+
+## Requirements
+
+### Requirement 1: Document Ingestion
+
+**User Story:** As a platform administrator, I want the system to automatically fetch and parse company sustainability reports, so that document data is available for analysis.
+
+#### Acceptance Criteria
+
+1. WHEN a new company report URL is provided, THE Document Ingestion Service SHALL fetch the PDF document from the source
+2. WHEN a PDF document is fetched, THE Document Ingestion Service SHALL parse the document into structured text and table data
+3. WHEN document parsing is complete, THE Document Ingestion Service SHALL store the raw PDF in MinIO with a unique Object Key
+4. WHEN document parsing is complete, THE Document Ingestion Service SHALL store extracted text and metadata in the Storage System
+5. WHEN document processing fails, THE Document Ingestion Service SHALL log the error and mark the document status as failed
+
+### Requirement 2: Document Metadata Management
+
+**User Story:** As a data analyst, I want each document to have comprehensive metadata, so that I can track and query documents by company, year, and type.
+
+#### Acceptance Criteria
+
+1. WHEN a document is stored, THE Platform SHALL record the company name in the metadata
+2. WHEN a document is stored, THE Platform SHALL record the report year in the metadata
+3. WHEN a document is stored, THE Platform SHALL record the report type in the metadata
+4. WHEN a document is stored, THE Platform SHALL record the processing status in the metadata
+5. WHEN a document is stored, THE Platform SHALL record the ingestion timestamp in the metadata
+
+### Requirement 3: Text Chunking
+
+**User Story:** As a system operator, I want document text to be split into semantic chunks, so that embeddings can capture contextual meaning effectively.
+
+#### Acceptance Criteria
+
+1. WHEN document text is processed, THE Embeddings Service SHALL split the text into chunks between 1,000 and 2,000 characters
+2. WHEN creating chunks, THE Embeddings Service SHALL preserve sentence boundaries to maintain semantic coherence
+3. WHEN chunks are created, THE Embeddings Service SHALL associate each chunk with its source page number
+4. WHEN chunks are created, THE Embeddings Service SHALL associate each chunk with the document Object Key
+5. WHEN chunking fails, THE Embeddings Service SHALL log the error and mark the document as failed
+
+### Requirement 4: Embedding Generation
+
+**User Story:** As a system operator, I want text chunks to be converted into vector embeddings, so that semantic search can be performed on document content.
+
+#### Acceptance Criteria
+
+1. WHEN text chunks are created, THE Embeddings Service SHALL generate vector embeddings using text-embedding-3-large or bge-large-en-v1.5 model
+2. WHEN generating embeddings, THE Embeddings Service SHALL process chunks in batches to optimize performance
+3. WHEN embeddings are generated, THE Embeddings Service SHALL store each embedding with its associated chunk text in the Storage System
+4. WHEN embeddings are generated, THE Embeddings Service SHALL store the page number and Object Key with each embedding
+5. WHEN all embeddings for a document are stored, THE Embeddings Service SHALL mark the document status as embedded
+
+### Requirement 5: Asynchronous Task Processing
+
+**User Story:** As a system architect, I want document processing tasks to be handled asynchronously, so that the system can scale and handle failures gracefully.
+
+#### Acceptance Criteria
+
+1. WHEN a document is ingested, THE Platform SHALL publish a task message to the Message Queue
+2. WHEN an embedding task is queued, THE Message Queue SHALL ensure the task is durable and persisted
+3. WHEN a worker fails to process a task, THE Message Queue SHALL retry the task according to configured retry logic
+4. WHEN a task is retried, THE Platform SHALL increment the retry counter in the task metadata
+5. WHEN a task exceeds maximum retry attempts, THE Platform SHALL move the task to a dead letter queue
+
+### Requirement 6: ESG Indicator Extraction with LangChain
+
+**User Story:** As an ESG analyst, I want the system to automatically extract standardized BRSR Core Indicators from reports using Google GenAI and LangChain, so that I can analyze company ESG performance without manual data entry.
+
+#### Acceptance Criteria
+
+1. WHEN an indicator extraction is requested, THE Extraction Service SHALL retrieve relevant context chunks using Vector Similarity Search with pgvector
+2. WHEN context chunks are retrieved, THE Extraction Service SHALL construct a LangChain retrieval chain with Google GenAI (gemini-2.5-flash model)
+3. WHEN the LLM processes the request, THE Extraction Service SHALL use LangChain structured output to extract numeric, textual, and qualitative values for each BRSR Core indicator
+4. WHEN indicator values are extracted, THE Extraction Service SHALL store the values with their associated indicator identifiers and confidence scores in the Storage System
+5. WHEN extraction is complete, THE Extraction Service SHALL mark the document as processed for indicator extraction
+
+### Requirement 7: BRSR Core Indicator Schema Management
+
+**User Story:** As a platform administrator, I want to define and manage BRSR Core indicator schemas based on the official framework, so that the extraction process follows standardized definitions.
+
+#### Acceptance Criteria
+
+1. THE Platform SHALL store BRSR Core indicator definitions including attribute number, parameter name, measurement unit, and data assurance approach
+2. THE Platform SHALL support all 9 BRSR Core attributes: GHG footprint, Water footprint, Energy footprint, Waste management, Employee wellbeing, Gender diversity, Inclusive development, Customer fairness, and Business openness
+3. WHEN extracting indicators, THE Extraction Service SHALL use LangChain Pydantic models to enforce structured output matching BRSR Core schema
+4. THE Platform SHALL store indicator metadata including cross-references to BRSR Essential Indicators questions
+5. WHEN an indicator schema is updated, THE Platform SHALL version the schema to maintain historical consistency
+
+### Requirement 8: Data Storage and Retrieval
+
+**User Story:** As a developer, I want all document data, embeddings, and extracted indicators to be stored in a queryable database, so that I can build analytics and reporting features.
+
+#### Acceptance Criteria
+
+1. THE Storage System SHALL store document metadata in a relational table with indexed fields for company name and report year
+2. THE Storage System SHALL store embeddings in a table with pgvector support for similarity search
+3. THE Storage System SHALL store extracted indicator values in a table linked to documents and indicator definitions
+4. WHEN querying embeddings, THE Storage System SHALL support vector similarity search with configurable distance metrics
+5. WHEN querying indicators, THE Storage System SHALL support filtering by company, year, and indicator type
+
+### Requirement 9: Error Handling and Monitoring
+
+**User Story:** As a system operator, I want comprehensive error logging and status tracking, so that I can monitor system health and troubleshoot issues.
+
+#### Acceptance Criteria
+
+1. WHEN any service encounters an error, THE Platform SHALL log the error with timestamp, service name, and error details
+2. WHEN a document processing step fails, THE Platform SHALL update the document status to reflect the failure point
+3. THE Platform SHALL expose health check endpoints for each service
+4. THE Platform SHALL track processing metrics including documents processed, embeddings generated, and indicators extracted
+5. WHEN a critical error occurs, THE Platform SHALL send alerts to configured monitoring channels
+
+### Requirement 10: API Access
+
+**User Story:** As an application developer, I want to access document data and extracted indicators through APIs, so that I can build client applications and integrations.
+
+#### Acceptance Criteria
+
+1. THE Platform SHALL provide a REST API for querying documents by company name and report year
+2. THE Platform SHALL provide a REST API for retrieving extracted indicator values for a specific document
+3. THE Platform SHALL provide a REST API for performing semantic search across document embeddings
+4. WHEN API requests are made, THE Platform SHALL authenticate and authorize requests using API keys or tokens
+5. WHEN API requests are made, THE Platform SHALL return responses in JSON format with appropriate HTTP status codes
+
+### Requirement 11: LangChain Integration for Retrieval-Augmented Generation
+
+**User Story:** As a system architect, I want to use LangChain for building retrieval-augmented generation pipelines, so that indicator extraction is accurate and contextually grounded.
+
+#### Acceptance Criteria
+
+1. THE Extraction Service SHALL use LangChain VectorStore integration with pgvector for semantic retrieval
+2. WHEN building extraction chains, THE Extraction Service SHALL use LangChain RetrievalQA or similar chains to combine retrieval with generation
+3. WHEN prompting the LLM, THE Extraction Service SHALL use LangChain PromptTemplates to structure queries for BRSR Core indicator extraction
+4. THE Extraction Service SHALL use LangChain output parsers to validate and structure extracted indicator data
+5. WHEN extraction fails, THE Extraction Service SHALL use LangChain retry logic with exponential backoff
+
+### Requirement 12: Multi-Indicator Batch Extraction
+
+**User Story:** As an ESG analyst, I want the system to extract multiple BRSR Core indicators in a single pass, so that processing is efficient and cost-effective.
+
+#### Acceptance Criteria
+
+1. WHEN processing a document, THE Extraction Service SHALL group related BRSR Core indicators by attribute for batch extraction
+2. WHEN extracting indicators, THE Extraction Service SHALL use LangChain structured output with nested Pydantic models for multiple indicators
+3. THE Extraction Service SHALL process all 9 BRSR Core attributes in separate extraction batches
+4. WHEN batch extraction completes, THE Extraction Service SHALL store all extracted indicators atomically in a single transaction
+5. WHEN any indicator in a batch fails extraction, THE Extraction Service SHALL log the failure but continue processing remaining indicators
+
+### Requirement 13: Confidence Scoring and Validation
+
+**User Story:** As an ESG analyst, I want extracted indicators to include confidence scores and validation status, so that I can assess data quality and reliability.
+
+#### Acceptance Criteria
+
+1. WHEN extracting indicators, THE Extraction Service SHALL request confidence scores from the LLM for each extracted value
+2. THE Extraction Service SHALL validate extracted numeric values against expected ranges defined in BRSR Core schema
+3. WHEN validation fails, THE Extraction Service SHALL flag the indicator with a validation error and store the raw extracted value
+4. THE Platform SHALL store confidence scores (0.0 to 1.0) with each extracted indicator value
+5. THE Platform SHALL provide an API endpoint to query indicators filtered by minimum confidence threshold
+
+### Requirement 14: Source Citation and Traceability
+
+**User Story:** As an ESG analyst, I want every extracted indicator to include source citations with PDF name and page numbers, so that I can verify the data and maintain transparency.
+
+#### Acceptance Criteria
+
+1. WHEN extracting an indicator, THE Extraction Service SHALL record the source Object Key (PDF file path) for the indicator
+2. WHEN extracting an indicator, THE Extraction Service SHALL record the page numbers where the indicator data was found
+3. THE Storage System SHALL store source citations including PDF name, page numbers, and chunk indices for each extracted indicator
+4. THE Platform SHALL provide an API endpoint to retrieve source citations for any extracted indicator
+5. WHEN displaying indicators, THE Platform SHALL include clickable citations that link to the source document and page
+
+### Requirement 15: ESG Score Calculation and Pillar Aggregation
+
+**User Story:** As an ESG analyst, I want the system to calculate overall ESG scores and pillar scores from extracted indicators, so that I can assess company performance holistically.
+
+#### Acceptance Criteria
+
+1. THE Platform SHALL calculate pillar scores for Environmental (E), Social (S), and Governance (G) dimensions based on BRSR Core attributes
+2. WHEN calculating pillar scores, THE Platform SHALL aggregate indicator values using weighted averages based on indicator importance
+3. THE Platform SHALL calculate an overall ESG score by combining the three pillar scores with configurable weights
+4. THE Platform SHALL store score calculation methodology and weights with each calculated score for transparency
+5. THE Platform SHALL provide an API endpoint to retrieve ESG scores with full calculation breakdown and source citations
+
+### Requirement 16: Vue 3 Frontend with Composition API
+
+**User Story:** As a platform user, I want a modern web interface built with Vue 3 Composition API, so that I can interact with the platform efficiently.
+
+#### Acceptance Criteria
+
+1. THE Platform SHALL provide a frontend application built with Vue 3 using Composition API and script setup syntax
+2. THE Frontend SHALL use Bun as the JavaScript runtime and package manager for development and building
+3. THE Frontend SHALL use TypeScript for type safety and better developer experience
+4. THE Frontend SHALL implement responsive design that works on desktop and tablet devices
+5. THE Frontend SHALL use a modern UI component library compatible with Vue 3
+
+### Requirement 17: Company Dashboard and Comparison
+
+**User Story:** As an ESG analyst, I want to view company-specific dashboards with indicator visualizations and compare multiple companies, so that I can analyze ESG performance.
+
+#### Acceptance Criteria
+
+1. THE Frontend SHALL display a company dashboard showing all extracted BRSR Core indicators organized by the 9 attributes
+2. WHEN viewing a company dashboard, THE Frontend SHALL visualize indicator trends across multiple years using charts
+3. THE Frontend SHALL provide a comparison view where users can select multiple companies and compare their indicators side-by-side
+4. WHEN comparing companies, THE Frontend SHALL highlight significant differences and display industry benchmarks
+5. THE Frontend SHALL allow users to filter and search indicators by attribute, pillar, or keyword
+
+### Requirement 18: Transparent Score Derivation Visualization
+
+**User Story:** As an ESG analyst, I want to see how ESG scores are derived with full transparency, so that I can understand and trust the scoring methodology.
+
+#### Acceptance Criteria
+
+1. THE Frontend SHALL display a score breakdown view showing how the overall ESG score is calculated from pillar scores
+2. WHEN viewing score breakdown, THE Frontend SHALL show how each pillar score is derived from individual BRSR Core indicators
+3. THE Frontend SHALL display the weights applied to each indicator and pillar in the score calculation
+4. THE Frontend SHALL show source citations (PDF name and page numbers) for every indicator contributing to the score
+5. WHEN clicking on an indicator, THE Frontend SHALL display the raw extracted value, confidence score, and allow navigation to the source document
+
+### Requirement 19: Interactive Source Citation Navigation
+
+**User Story:** As an ESG analyst, I want to click on any indicator or score component and view the source document, so that I can verify the data directly.
+
+#### Acceptance Criteria
+
+1. WHEN an indicator is displayed, THE Frontend SHALL show a citation badge with PDF name and page number
+2. WHEN a user clicks on a citation, THE Frontend SHALL open a document viewer showing the relevant page from the source PDF
+3. THE Frontend SHALL highlight the text chunk on the PDF page that was used for indicator extraction
+4. THE Frontend SHALL allow users to navigate between multiple source citations when an indicator is derived from multiple pages
+5. THE Frontend SHALL display the extraction confidence score and timestamp alongside the source citation
+
+### Requirement 20: Company Search and Report Management
+
+**User Story:** As a platform user, I want to search for companies and view their available reports, so that I can access ESG data efficiently.
+
+#### Acceptance Criteria
+
+1. THE Frontend SHALL provide a search interface to find companies by name, symbol, or industry
+2. WHEN a company is selected, THE Frontend SHALL display all available reports with year, type, and processing status
+3. THE Frontend SHALL allow users to trigger report processing for new documents
+4. THE Frontend SHALL display processing status (pending, processing, completed, failed) for each report
+5. THE Frontend SHALL provide filters to view companies by industry, ESG score range, or data availability
+
+### Requirement 21: Python Dependency Management with UV
+
+**User Story:** As a developer, I want all Python dependencies managed using UV, so that package installation is fast, reproducible, and efficient.
+
+#### Acceptance Criteria
+
+1. THE Platform SHALL use UV for all Python package management operations instead of pip or poetry
+2. WHEN setting up Python services, THE Platform SHALL use UV to create and manage virtual environments
+3. WHEN installing dependencies, THE Platform SHALL use UV with lock files to ensure reproducible builds
+4. THE Platform SHALL define Python dependencies in pyproject.toml files compatible with UV
+5. WHEN running Python scripts or services, THE Platform SHALL use UV run commands to execute within managed environments
+
+### Requirement 22: Docker-Based Service Deployment
+
+**User Story:** As a DevOps engineer, I want all services containerized with Docker, so that deployment is consistent, portable, and scalable.
+
+#### Acceptance Criteria
+
+1. THE Platform SHALL package each service (Company Catalog, Document Ingestion, Embeddings, Extraction, Frontend) as a Docker container
+2. WHEN building Docker images, THE Platform SHALL use multi-stage builds to optimize image size and build efficiency
+3. THE Platform SHALL use Docker Compose to orchestrate all services including PostgreSQL, MinIO, RabbitMQ, and PgAdmin
+4. WHEN deploying services, THE Platform SHALL use Docker networks to enable secure inter-service communication
+5. THE Platform SHALL use Docker volumes for persistent data storage for databases and object storage
+
+### Requirement 23: Containerized Development Environment
+
+**User Story:** As a developer, I want to run the entire platform locally using Docker, so that I can develop and test without complex environment setup.
+
+#### Acceptance Criteria
+
+1. THE Platform SHALL provide a Docker Compose configuration that starts all services with a single command
+2. WHEN starting the development environment, THE Platform SHALL automatically initialize databases with required schemas and extensions
+3. THE Platform SHALL mount source code directories as volumes in development containers to enable hot-reloading
+4. THE Platform SHALL expose service ports for local access to APIs, databases, and admin interfaces
+5. WHEN stopping the development environment, THE Platform SHALL preserve data volumes to maintain state between sessions

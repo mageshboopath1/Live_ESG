@@ -1,0 +1,126 @@
+# Multi-Stage Docker Build Template for ESG Intelligence Platform
+# This template follows best practices for Python 3.12 services using UV package manager
+# 
+# Benefits of this approach:
+# - Smaller final images (20-40% reduction)
+# - Faster builds with UV
+# - Better security (minimal runtime dependencies)
+# - Reproducible builds with uv.lock
+
+# =============================================================================
+# Stage 1: Builder
+# =============================================================================
+# Use the official UV image with Python 3.12 for fast dependency installation
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+
+WORKDIR /app
+
+# Install system build dependencies (if needed)
+# Uncomment and customize based on your service requirements:
+# RUN apt-get update && apt-get install -y --no-install-recommends \
+#     build-essential \
+#     libpq-dev \
+#     libxml2-dev \
+#     libxslt-dev \
+#     && rm -rf /var/lib/apt/lists/*
+
+# Copy dependency files first for better layer caching
+# These files change less frequently than application code
+COPY pyproject.toml uv.lock ./
+
+# Install Python dependencies using UV
+# --frozen: Use exact versions from uv.lock (reproducible builds)
+# --no-dev: Skip development dependencies in production
+RUN uv sync --frozen --no-dev
+
+# =============================================================================
+# Stage 2: Runtime
+# =============================================================================
+# Use minimal Python 3.12 slim image for production
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install runtime system dependencies (if needed)
+# Only include libraries needed at runtime, not build tools
+# Uncomment and customize based on your service requirements:
+# RUN apt-get update && apt-get install -y --no-install-recommends \
+#     libpq5 \
+#     libxml2 \
+#     libxslt1.1 \
+#     curl \
+#     && rm -rf /var/lib/apt/lists/*
+
+# Copy the virtual environment from builder stage
+# This includes all Python packages but excludes build tools
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy application code
+# Adjust paths based on your service structure
+COPY src/ ./src/
+# COPY main.py ./
+
+# Set environment variables
+# Add virtual environment to PATH so Python finds installed packages
+ENV PATH="/app/.venv/bin:$PATH"
+# Prevent Python from buffering stdout/stderr (better logging)
+ENV PYTHONUNBUFFERED=1
+# Prevent Python from writing .pyc files (not needed in containers)
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Expose service port (customize based on your service)
+# EXPOSE 8000
+
+# Health check (customize based on your service)
+# This allows Docker/orchestrators to monitor service health
+# HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+#     CMD curl -f http://localhost:8000/health || exit 1
+
+# Run the application
+# Customize the command based on your service entry point
+CMD ["python", "src/main.py"]
+
+# =============================================================================
+# Common Patterns for Different Service Types
+# =============================================================================
+
+# FastAPI Service:
+# CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Worker Service:
+# CMD ["python", "src/worker.py"]
+
+# CLI Service:
+# CMD ["python", "main.py"]
+
+# =============================================================================
+# Build and Run Instructions
+# =============================================================================
+
+# Build the image:
+# docker build -t <service-name>:latest .
+
+# Run the container:
+# docker run -p 8000:8000 --env-file .env <service-name>:latest
+
+# Build with docker-compose:
+# docker-compose build <service-name>
+
+# =============================================================================
+# Troubleshooting
+# =============================================================================
+
+# If UV sync fails:
+# - Ensure uv.lock is committed and up-to-date
+# - Run `uv sync` locally to regenerate uv.lock
+# - Check that pyproject.toml has correct dependencies
+
+# If runtime fails with missing modules:
+# - Verify COPY commands include all necessary files
+# - Check that PATH includes /app/.venv/bin
+# - Ensure --no-dev flag matches your needs
+
+# If image is too large:
+# - Remove unnecessary system dependencies
+# - Use .dockerignore to exclude unnecessary files
+# - Verify multi-stage build is working (check COPY --from=builder)

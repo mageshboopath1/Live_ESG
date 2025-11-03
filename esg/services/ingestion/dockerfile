@@ -1,0 +1,47 @@
+# Build stage: Install dependencies using UV
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+
+WORKDIR /app
+
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies in production mode (no dev dependencies)
+RUN uv sync --frozen --no-dev
+
+# Runtime stage: Minimal image with runtime dependencies
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install aria2 for download functionality
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends aria2 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy virtual environment from builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy application source code and data
+COPY src/ ./src/
+COPY links/ ./links/
+
+# Set PATH to use virtual environment
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Python environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Environment variables
+ENV POSTGRES_HOST=${POSTGRES_HOST}
+ENV POSTGRES_USER=${POSTGRES_USER}
+ENV POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+ENV POSTGRES_DB=${POSTGRES_DB}
+ENV MINIO_ENDPOINT=${MINIO_ENDPOINT}
+ENV MINIO_ROOT_USER=${MINIO_ROOT_USER}
+ENV MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+
+# Run ingestion script
+CMD ["python", "src/main.py"]

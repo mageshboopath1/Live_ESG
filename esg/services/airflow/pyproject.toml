@@ -1,0 +1,20 @@
+[project]
+name = "esg-airflow"
+version = "0.1.0"
+description = "ESG Intelligence Platform - Airflow Orchestration"
+requires-python = ">=3.12"
+dependencies = [
+    # Airflow providers
+    "apache-airflow-providers-docker>=3.9.0",
+    "apache-airflow-providers-postgres>=5.10.0",
+    # Database and storage clients
+    "psycopg2-binary>=2.9.9",
+    "minio>=7.2.3",
+    # Google GenAI
+    "google-generativeai>=0.3.2",
+    # Fix for Airflow 2.10.4 structlog compatibility (pin to compatible version)
+    "structlog<25.0.0,>=24.1.0",
+]
+
+[dependency-groups]
+dev = []

@@ -1,0 +1,506 @@
+# Implementation Plan
+
+## Overview
+
+This implementation plan breaks down the ESG Intelligence Platform development into discrete, actionable coding tasks. Each task builds incrementally on previous work, following the migration path outlined in the design document.
+
+---
+
+## Phase 1: Database Schema and BRSR Core Definitions
+
+- [x] 1. Create BRSR Core indicator schema and seed data
+  - Create migration script for `brsr_indicators` table with all 9 attributes
+  - Define Python script to seed ~50 BRSR Core indicators from the reference document
+  - Include indicator_code, attribute_number, parameter_name, measurement_unit, pillar (E/S/G), weight, and BRSR reference
+  - Add composite index on (company_name, report_year) to document_embeddings table
+  - Add pgvector index (IVFFlat) on embedding column with cosine distance
+  - _Requirements: 7.1, 7.2, 7.4_
+
+- [x] 2. Create extracted indicators and ESG scores tables
+  - Create migration script for `extracted_indicators` table
+  - Create migration script for `esg_scores` table
+  - Add foreign key constraints to company_catalog and brsr_indicators
+  - Add indexes on object_key, company_id, indicator_id, and report_year
+  - Create unique constraint on (object_key, indicator_id)
+  - _Requirements: 6.4, 8.2, 8.3, 14.3_
+
+---
+
+## Phase 2: Extraction Service - Core Infrastructure
+
+- [x] 3. Setup extraction service project structure with UV and Docker
+  - Create `services/extraction/` directory with Python project structure
+  - Initialize UV project with `uv init` and setup pyproject.toml
+  - Add dependencies using UV: `uv add langchain langchain-google-genai psycopg2-binary pydantic python-dotenv`
+  - Create src/ directory with __init__.py
+  - Create config.py for environment variables (DB, Google API key)
+  - Create multi-stage Dockerfile using UV for dependency management
+  - Create uv.lock file for reproducible builds
+  - _Requirements: 6.1, 6.2, 11.1, 21.1, 21.2, 22.1_
+
+- [x] 4. Implement Pydantic models for BRSR indicators
+  - Create models/brsr_models.py with BRSRIndicatorDefinition model
+  - Create ExtractedIndicator model with validation
+  - Create BRSRIndicatorOutput model for LLM structured output
+  - Include confidence score validation (0.0-1.0)
+  - Add source_pages and source_chunk_ids fields
+  - _Requirements: 6.3, 13.1, 14.2_
+
+- [x] 5. Implement database repository for indicators
+  - Create db/repository.py with functions to load BRSR indicator definitions
+  - Implement function to fetch company and year from object_key
+  - Implement function to store extracted indicators with source citations
+  - Implement function to check if document already processed
+  - Add transaction handling for atomic batch inserts
+  - _Requirements: 6.4, 8.2, 12.4_
+
+---
+
+## Phase 3: LangChain RAG Pipeline
+
+- [x] 6. Implement filtered vector retriever
+  - Create retrieval/filtered_retriever.py with FilteredPGVectorRetriever class
+  - Implement get_relevant_documents() with company_name and report_year filtering
+  - Use SQL query with WHERE clause before vector similarity search
+  - Return LangChain Document objects with metadata (page_number, chunk_index, distance)
+  - Add error handling for empty results
+  - _Requirements: 6.1, 11.1, 11.2_
+
+- [x] 7. Create LangChain prompt templates for indicator extraction
+  - Create prompts/extraction_prompts.py with PromptTemplate for BRSR indicators
+  - Include indicator name, description, expected unit, and company context in template
+  - Add instructions for confidence scoring and source page identification
+  - Create PydanticOutputParser for structured output
+  - Add format instructions to prompt template
+  - _Requirements: 6.2, 6.3, 11.3_
+
+- [x] 8. Build extraction chain with Google GenAI
+  - Create chains/extraction_chain.py with create_extraction_chain() function
+  - Initialize ChatGoogleGenerativeAI with gemini-2.5-flash model
+  - Integrate FilteredPGVectorRetriever with company/year filtering
+  - Build RetrievalQA or custom chain with prompt template
+  - Add retry logic with exponential backoff for API failures
+  - _Requirements: 6.2, 6.3, 11.2, 11.4, 11.5_
+
+---
+
+## Phase 4: Indicator Extraction Logic
+
+- [x] 9. Implement single indicator extraction function
+  - Create extraction/extractor.py with extract_indicator() function
+  - Accept indicator definition, company_name, report_year as parameters
+  - Use filtered retriever to get relevant chunks (k=5-10)
+  - Execute LangChain chain with indicator schema
+  - Parse structured output using Pydantic
+  - Return ExtractedIndicator object with confidence and citations
+  - _Requirements: 6.1, 6.2, 6.3, 13.1_
+
+- [x] 10. Implement batch extraction for multiple indicators
+  - Create extract_indicators_batch() function for processing multiple indicators
+  - Group indicators by BRSR attribute for efficient processing
+  - Process all 9 attributes in separate batches
+  - Collect all extracted indicators before database insertion
+  - Handle partial failures gracefully (log and continue)
+  - _Requirements: 12.1, 12.2, 12.3, 12.5_
+
+- [x] 11. Add validation and confidence scoring
+  - Create validation/validator.py with validate_indicator() function
+  - Validate numeric values against expected ranges from BRSR schema
+  - Check for required fields and data types
+  - Flag indicators with validation errors but store raw values
+  - Ensure confidence scores are between 0.0 and 1.0
+  - _Requirements: 13.1, 13.2, 13.3, 13.4_
+
+---
+
+## Phase 5: ESG Score Calculation
+
+- [x] 12. Implement pillar score calculation
+  - Create scoring/pillar_calculator.py with calculate_pillar_scores() function
+  - Map BRSR attributes to E, S, G pillars based on indicator definitions
+  - Aggregate indicator values using weighted averages
+  - Handle missing indicators gracefully (use available data)
+  - Return environmental_score, social_score, governance_score
+  - _Requirements: 15.1, 15.2_
+
+- [x] 13. Implement overall ESG score calculation
+  - Create calculate_esg_score() function in scoring/esg_calculator.py
+  - Combine pillar scores with configurable weights (default: E=0.33, S=0.33, G=0.34)
+  - Store calculation methodology in metadata JSON
+  - Include breakdown of which indicators contributed to each pillar
+  - Store score with source citations for transparency
+  - _Requirements: 15.3, 15.4, 15.5_
+
+- [x] 14. Implement score storage and retrieval
+  - Add store_esg_score() function to db/repository.py
+  - Store scores in esg_scores table with calculation_metadata JSONB
+  - Implement get_score_breakdown() to retrieve full calculation details
+  - Include indicator values, weights, and citations in breakdown
+  - Add function to retrieve scores by company and year
+  - _Requirements: 15.4, 15.5_
+
+---
+
+## Phase 6: Extraction Service Main Worker
+
+- [x] 15. Create main extraction worker
+  - Create main.py with RabbitMQ consumer for extraction tasks
+  - Listen to "extraction-tasks" queue (create if doesn't exist)
+  - Parse object_key from message to get company_name and report_year
+  - Load all BRSR indicator definitions
+  - Execute batch extraction for all indicators
+  - Calculate and store ESG scores
+  - Mark document as processed
+  - _Requirements: 5.1, 5.2, 6.5, 12.4_
+
+- [x] 16. Add error handling and logging
+  - Implement comprehensive error logging for extraction failures
+  - Log LLM API errors with retry attempts
+  - Log validation failures with indicator details
+  - Update document status on failures
+  - Send task to dead letter queue after max retries
+  - _Requirements: 9.1, 9.2, 11.5_
+
+- [x] 17. Add monitoring and metrics
+  - Track extraction metrics (indicators extracted, confidence scores, processing time)
+  - Expose health check endpoint
+  - Log processing statistics per document
+  - Track API usage and costs
+  - _Requirements: 9.4_
+
+---
+
+## Phase 7: API Gateway Service
+
+- [x] 18. Setup FastAPI gateway project with UV and Docker
+  - Create `services/api-gateway/` directory with Python project structure
+  - Initialize UV project with `uv init` and setup pyproject.toml
+  - Add dependencies using UV: `uv add fastapi uvicorn sqlalchemy pydantic python-jose`
+  - Create src/ directory with main.py
+  - Create config.py for environment variables
+  - Setup CORS middleware
+  - Create multi-stage Dockerfile using UV for dependency management
+  - Create uv.lock file for reproducible builds
+  - _Requirements: 10.1, 10.4, 21.1, 21.2, 22.1_
+
+- [x] 19. Implement database models and connection
+  - Create db/models.py with SQLAlchemy models for all tables
+  - Create db/connection.py with database connection pooling
+  - Implement get_db() dependency for FastAPI
+  - Add connection error handling
+  - _Requirements: 8.1, 8.2, 8.3_
+
+- [x] 20. Create API endpoints for companies
+  - Create routers/companies.py with company endpoints
+  - Implement GET /api/companies (list with pagination)
+  - Implement GET /api/companies/{company_id} (single company)
+  - Implement GET /api/companies/search?q={query} (search by name/symbol)
+  - Add response models with Pydantic
+  - _Requirements: 10.1, 20.1, 20.2_
+
+- [x] 21. Create API endpoints for reports
+  - Create routers/reports.py with report endpoints
+  - Implement GET /api/companies/{company_id}/reports (list reports)
+  - Implement GET /api/reports/{object_key} (single report details)
+  - Implement POST /api/reports/trigger-processing (trigger extraction)
+  - Include processing status in responses
+  - _Requirements: 10.1, 20.3, 20.4_
+
+- [x] 22. Create API endpoints for indicators
+  - Create routers/indicators.py with indicator endpoints
+  - Implement GET /api/companies/{company_id}/indicators?year={year} (list indicators)
+  - Implement GET /api/indicators/{indicator_id} (single indicator with citations)
+  - Implement GET /api/indicators/compare?companies={ids}&year={year} (comparison)
+  - Include confidence scores and validation status
+  - _Requirements: 10.2, 17.1, 17.2, 17.5_
+
+- [x] 23. Create API endpoints for scores
+  - Create routers/scores.py with score endpoints
+  - Implement GET /api/companies/{company_id}/scores?year={year} (get scores)
+  - Implement GET /api/scores/breakdown/{company_id}/{year} (detailed breakdown)
+  - Include pillar scores, weights, and calculation metadata
+  - Return indicator contributions with source citations
+  - _Requirements: 10.2, 15.5, 18.1, 18.2_
+
+- [x] 24. Create API endpoints for citations
+  - Create routers/citations.py with citation endpoints
+  - Implement GET /api/citations/{extracted_indicator_id} (get citations)
+  - Implement GET /api/documents/{object_key}/page/{page_number} (get PDF page)
+  - Return PDF URLs from MinIO with presigned URLs
+  - Include chunk text and page numbers in citations
+  - _Requirements: 10.3, 14.4, 19.1, 19.2_
+
+- [x] 25. Implement authentication and authorization
+  - Create auth/jwt.py with JWT token generation and validation
+  - Implement API key authentication middleware
+  - Add rate limiting per API key
+  - Create protected route decorator
+  - Add user/API key management endpoints
+  - _Requirements: 10.4_
+
+- [x] 26. Add caching layer
+  - Implement Redis caching for company data (TTL: 1 hour)
+  - Cache indicator definitions (TTL: 24 hours)
+  - Cache calculated scores (TTL: 1 hour)
+  - Add cache invalidation on data updates
+  - _Requirements: Performance optimization_
+
+---
+
+## Phase 8: Frontend Application
+
+- [x] 27. Setup Vue 3 project with Bun and Docker
+  - Initialize Vue 3 project using `bun create vue@latest`
+  - Select TypeScript, Vue Router, Pinia, Vitest options
+  - Configure Vite for development and production builds
+  - Setup Tailwind CSS with shadcn and evil charts framework
+  - Create project structure (components, composables, stores, views, types)
+  - Create multi-stage Dockerfile with Bun for build and nginx for serving
+  - Create nginx.conf for production deployment
+  - Create bun.lockb for reproducible builds
+  - _Requirements: 16.1, 16.2, 16.3, 16.5, 22.1, 22.2_
+
+- [x] 28. Create TypeScript types and interfaces
+  - Create types/company.ts with Company interface
+  - Create types/indicator.ts with Indicator, Citation interfaces
+  - Create types/score.ts with Score, ScoreBreakdown interfaces
+  - Create types/report.ts with Report interface
+  - Export all types from types/index.ts
+  - _Requirements: 16.3_
+
+- [x] 29. Implement API client service
+  - Create services/api.ts with axios or fetch wrapper
+  - Implement API client with base URL configuration
+  - Add request/response interceptors for auth and error handling
+  - Create typed API methods for all endpoints
+  - Add error handling and retry logic
+  - _Requirements: 10.1, 10.5_
+
+- [x] 30. Create Pinia stores
+  - Create stores/companyStore.ts for company state management
+  - Create stores/indicatorStore.ts for indicator state
+  - Create stores/scoreStore.ts for score state
+  - Create stores/uiStore.ts for UI state (loading, errors, modals)
+  - Implement actions for fetching and caching data
+  - _Requirements: State management_
+
+- [x] 31. Build company search component
+  - Create components/CompanySearch.vue with search input
+  - Implement debounced search with composable
+  - Display search results with company cards
+  - Add filtering by industry
+  - Navigate to company dashboard on selection
+  - _Requirements: 20.1, 20.2, 20.5_
+
+- [x] 32. Build company dashboard view
+  - Create views/CompanyView.vue as main dashboard
+  - Display company header with name, symbol, industry
+  - Show available reports with years and status
+  - Organize indicators by 9 BRSR attributes in tabs or sections
+  - Display indicator cards with values and confidence scores
+  - _Requirements: 17.1, 17.5, 20.3_
+
+- [x] 33. Create indicator card component
+  - Create components/IndicatorCard.vue to display single indicator
+  - Show indicator name, value, unit, and confidence badge
+  - Display validation status with color coding
+  - Show citation badge with PDF name and page numbers
+  - Make citation clickable to open citation viewer
+  - _Requirements: 17.1, 18.5, 19.1_
+
+- [x] 34. Build score visualization component
+  - Create components/ScoreVisualization.vue for score display
+  - Display overall ESG score with gauge or progress bar
+  - Show pillar scores (E, S, G) with separate visualizations
+  - Use charts (Evil charts) for visual representation
+  - Add trend visualization for multi-year data
+  - _Requirements: 17.2, 18.1_
+
+- [x] 35. Create score breakdown component
+  - Create components/ScoreBreakdown.vue for transparent score derivation
+  - Display hierarchical breakdown: Overall → Pillars → Indicators
+  - Show weights applied at each level
+  - Display indicator contributions with values and citations
+  - Make each indicator clickable to view source
+  - _Requirements: 18.2, 18.3, 18.4, 18.5_
+
+- [x] 36. Build citation viewer component
+  - Create components/CitationViewer.vue for displaying citations
+  - Show PDF name, page numbers, and chunk text
+  - Display confidence score and extraction timestamp
+  - Add "View in PDF" button to open PDF viewer
+  - Support multiple citations for single indicator
+  - _Requirements: 19.1, 19.4, 19.5_
+
+- [x] 37. Implement PDF viewer component
+  - Create components/PDFViewer.vue with PDF.js or similar library
+  - Load PDF from API endpoint (presigned MinIO URL)
+  - Navigate to specific page number from citation
+  - Highlight relevant text chunk on page (if possible)
+  - Add zoom and navigation controls
+  - _Requirements: 19.2, 19.3_
+
+- [x] 38. Build company comparison view
+  - Create views/ComparisonView.vue for multi-company comparison
+  - Allow selection of multiple companies (2-4)
+  - Display indicators side-by-side in table format
+  - Highlight significant differences
+  - Show industry benchmarks if available
+  - Add export functionality (CSV/PDF)
+  - _Requirements: 17.3, 17.4_
+
+- [x] 39. Implement responsive layout and navigation
+  - Create App.vue with main layout and navigation
+  - Add top navigation bar with logo and menu
+  - Implement responsive design for desktop and tablet
+  - Add loading states and error boundaries
+  - Create 404 and error pages
+  - _Requirements: 16.4_
+
+- [x] 40. Add data visualization charts
+  - Integrate chart.js library
+  - Create reusable chart components (bar, line, radar)
+  - Implement indicator trend charts across years
+  - Add pillar comparison radar charts
+  - Implement interactive tooltips with citations
+  - _Requirements: 17.2_
+
+---
+
+## Phase 9: Docker and UV Integration
+
+- [x] 41. Create standardized Dockerfiles for existing Python services
+  - Update company-catalog service Dockerfile to use UV multi-stage build
+  - Update ingestion service Dockerfile to use UV multi-stage build
+  - Update embeddings service Dockerfile to use UV multi-stage build
+  - Ensure all Dockerfiles copy pyproject.toml and uv.lock
+  - Use `uv sync --frozen --no-dev` for production builds
+  - Set PATH to use virtual environment in runtime stage
+  - _Requirements: 21.1, 21.2, 22.1_
+
+- [x] 42. Migrate existing Python services to UV
+  - Convert company-catalog service to use UV (create pyproject.toml, run `uv sync`)
+  - Convert ingestion service to use UV (create pyproject.toml, run `uv sync`)
+  - Convert embeddings service to use UV (create pyproject.toml, run `uv sync`)
+  - Generate uv.lock files for all services
+  - Update service README files with UV commands
+  - Test services locally with `uv run python main.py`
+  - _Requirements: 21.1, 21.2, 21.3, 21.4_
+
+- [x] 43. Create .env.example template
+  - Document all required environment variables
+  - Include database, MinIO, RabbitMQ, and Google API key variables
+  - Add comments explaining each variable
+  - Include default values for development
+  - Add security notes for production deployment
+  - _Requirements: 23.1, 23.4_
+
+## Phase 10: Integration and Testing
+
+- [x] 44. Integration and Testing
+  - Modify ingestion service to publish to "extraction-tasks" queue after embedding
+  - Pass object_key in message payload
+  - Add error handling for queue publishing
+  - _Requirements: 5.1, 6.5_
+
+- [x] 45. Create comprehensive Docker Compose configuration
+  - Update docker-compose.yml to include extraction service and API gateway
+  - Add frontend service with nginx for production
+  - Configure service dependencies with health checks (postgres, minio, rabbitmq)
+  - Add Docker networks for service isolation
+  - Configure environment variables for all services
+  - Create docker-compose.dev.yml for development with volume mounts and hot-reload
+  - Add PgAdmin service for database management
+  - Configure persistent volumes for postgres, minio, and rabbitmq
+  - _Requirements: 22.2, 22.3, 22.4, 22.5, 23.1, 23.2_
+
+- [x] 46. Test Docker Compose setup
+  - Test `docker-compose up` starts all services successfully
+  - Verify health checks pass for all services
+  - Test service-to-service communication (API to DB, services to RabbitMQ)
+  - Test volume persistence (stop and restart services)
+  - Test development mode with hot-reload using docker-compose.dev.yml
+  - Verify environment variables are correctly passed to services
+  - _Requirements: 23.1, 23.2, 23.3, 23.4, 23.5_
+
+- [x] 47. Database Migrations
+  - Create migrations/ directory with numbered SQL scripts
+  - Write migration for BRSR indicators table and seed data
+  - Write migration for extracted indicators and scores tables
+  - Write migration for indexes and constraints
+  - Create rollback scripts for each migration
+  - _Requirements: 1, 2_
+
+- [x] 48. End-to-End Extraction Testing
+  - Test end-to-end extraction for sample document
+  - Verify filtered vector retrieval with company/year
+  - Test indicator extraction and validation
+  - Test score calculation accuracy
+  - Verify source citation storage
+  - _Requirements: Testing_
+- [ ] 49. 
+
+  - Test all API endpoints with FastAPI TestClient
+  - Test authentication and authorization
+  - Test error handling and validation
+  - Test pagination and filtering
+  - Test response formats
+  - _Requirements: Testing_
+
+- [ ] 50. 
+
+  - Test components with Vitest and Vue Test Utils
+  - Test composables with mock data
+  - Test store actions and state management
+  - Test user interactions and navigation
+  - Test error handling
+  - _Requirements: Testing_
+
+---
+
+## Phase 11: Documentation and Deployment
+
+- [ ] 46. 
+  - Generate OpenAPI/Swagger documentation from FastAPI
+  - Add endpoint descriptions and examples
+  - Document authentication flow
+  - Create API usage guide
+  - _Requirements: Documentation_
+
+- [ ] 46. 
+  - Document environment variables for all services
+  - Create deployment guide for Docker Compose
+  - Document UV usage for Python services
+  - Document Bun usage for frontend development
+  - Document database setup and migrations
+  - Create troubleshooting guide for Docker and UV issues
+  - _Requirements: Documentation, 21.1, 22.1_
+
+- [ ] 46. 
+  - Configure centralized logging (ELK stack or similar)
+  - Add application metrics (Prometheus)
+  - Create monitoring dashboards (Grafana)
+  - Setup alerting for critical errors
+  - _Requirements: 9.3, 9.5_
+
+- [ ] 46. 
+  - Profile and optimize slow API endpoints
+  - Optimize database queries with EXPLAIN ANALYZE
+  - Tune pgvector index parameters
+  - Implement frontend code splitting and lazy loading
+  - Optimize bundle size with Bun
+  - Optimize Docker image sizes
+  - _Requirements: Performance_
+
+---
+
+## Notes
+
+- All tasks are required for a comprehensive implementation
+- Each task should be completed and tested before moving to the next
+- UV is used for all Python dependency management for fast, reproducible builds
+- Docker is used for all services to ensure consistent deployment
+- Bun is used for frontend development and building for optimal performance
+- Refer to requirements document for detailed acceptance criteria
+- Refer to design document for implementation details and code examples
+- Testing, documentation, and monitoring are included as core requirements

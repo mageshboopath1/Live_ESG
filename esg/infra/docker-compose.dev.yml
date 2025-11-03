@@ -1,0 +1,109 @@
+# ============================================================================
+# Development Docker Compose Configuration
+# ============================================================================
+# This file extends docker-compose.yml with development-specific settings:
+# - Volume mounts for hot-reloading
+# - Debug mode enabled
+# - Exposed ports for debugging
+# - Development-friendly logging
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+# ============================================================================
+
+services:
+  # ============================================================================
+  # Application Services - Development Overrides
+  # ============================================================================
+  
+  company-catalog:
+    volumes:
+      - ../services/company-catalog/src:/app/src:ro
+      - ../services/company-catalog/pyproject.toml:/app/pyproject.toml:ro
+    environment:
+      LOG_LEVEL: DEBUG
+      PYTHONUNBUFFERED: 1
+    command: uv run python -u src/main.py
+
+  ingestion:
+    volumes:
+      - ../services/ingestion/src:/app/src:ro
+      - ../services/ingestion/pyproject.toml:/app/pyproject.toml:ro
+    environment:
+      LOG_LEVEL: DEBUG
+      PYTHONUNBUFFERED: 1
+    command: uv run python -u src/main.py
+
+  embeddings:
+    volumes:
+      - ../services/embeddings/src:/app/src:ro
+      - ../services/embeddings/pyproject.toml:/app/pyproject.toml:ro
+    environment:
+      LOG_LEVEL: DEBUG
+      PYTHONUNBUFFERED: 1
+    command: uv run python -u src/main.py
+
+  extraction:
+    volumes:
+      - ../services/extraction/src:/app/src:ro
+      - ../services/extraction/pyproject.toml:/app/pyproject.toml:ro
+    environment:
+      LOG_LEVEL: DEBUG
+      PYTHONUNBUFFERED: 1
+    command: uv run python -u main.py
+
+  api-gateway:
+    volumes:
+      - ../services/api-gateway/src:/app/src:ro
+      - ../services/api-gateway/pyproject.toml:/app/pyproject.toml:ro
+    environment:
+      DEBUG: true
+      LOG_LEVEL: DEBUG
+      PYTHONUNBUFFERED: 1
+    command: uv run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ../services/frontend
+      dockerfile: Dockerfile.dev
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    volumes:
+      - ../services/frontend/src:/app/src:ro
+      - ../services/frontend/public:/app/public:ro
+      - ../services/frontend/index.html:/app/index.html:ro
+      - ../services/frontend/vite.config.ts:/app/vite.config.ts:ro
+      - ../services/frontend/tsconfig.json:/app/tsconfig.json:ro
+      - ../services/frontend/package.json:/app/package.json:ro
+      # Exclude node_modules from volume mount
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      NODE_ENV: development
+      VITE_ENABLE_DEBUG: true
+    command: bun run dev --host 0.0.0.0
+
+  # ============================================================================
+  # Database - Development Overrides
+  # ============================================================================
+  
+  postgres:
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_LOG_STATEMENT: all
+      POSTGRES_LOG_MIN_DURATION_STATEMENT: 0
+
+  # ============================================================================
+  # Monitoring and Debugging Tools
+  # ============================================================================
+  
+  # Uncomment to enable database query monitoring
+  # pgbadger:
+  #   image: dalibo/pgbadger:latest
+  #   container_name: esg-pgbadger
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data:ro
+  #   networks:
+  #     - backend

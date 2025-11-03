@@ -1,0 +1,8 @@
+[project]
+name = "db-init"
+version = "0.1.0"
+description = "Database initialization and BRSR Core indicator seeding for ESG Intelligence Platform"
+requires-python = ">=3.11"
+dependencies = [
+    "psycopg2-binary>=2.9.9",
+]

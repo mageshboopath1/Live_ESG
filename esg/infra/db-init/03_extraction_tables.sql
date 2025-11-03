@@ -1,0 +1,48 @@
+-- Migration: Create tables for extracted indicators and ESG scores
+-- These tables store the results of LLM-based indicator extraction
+
+CREATE TABLE IF NOT EXISTS extracted_indicators (
+    id SERIAL PRIMARY KEY,
+    object_key TEXT NOT NULL,
+    company_id INT REFERENCES company_catalog(id),
+    report_year INT NOT NULL,
+    indicator_id INT REFERENCES brsr_indicators(id),
+    extracted_value TEXT NOT NULL,
+    numeric_value DECIMAL,
+    confidence_score DECIMAL(3,2) CHECK (confidence_score >= 0.0 AND confidence_score <= 1.0),
+    validation_status TEXT CHECK (validation_status IN ('valid', 'invalid', 'pending')) DEFAULT 'pending',
+    source_pages INT[],
+    source_chunk_ids INT[],
+    extracted_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(object_key, indicator_id)
+);
+
+CREATE TABLE IF NOT EXISTS esg_scores (
+    id SERIAL PRIMARY KEY,
+    company_id INT REFERENCES company_catalog(id),
+    report_year INT NOT NULL,
+    environmental_score DECIMAL(5,2),
+    social_score DECIMAL(5,2),
+    governance_score DECIMAL(5,2),
+    overall_score DECIMAL(5,2),
+    calculation_metadata JSONB,
+    calculated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(company_id, report_year)
+);
+
+-- Create indexes for efficient querying
+CREATE INDEX IF NOT EXISTS idx_extracted_object_key ON extracted_indicators(object_key);
+CREATE INDEX IF NOT EXISTS idx_extracted_company_id ON extracted_indicators(company_id);
+CREATE INDEX IF NOT EXISTS idx_extracted_indicator_id ON extracted_indicators(indicator_id);
+CREATE INDEX IF NOT EXISTS idx_extracted_report_year ON extracted_indicators(report_year);
+CREATE INDEX IF NOT EXISTS idx_extracted_validation ON extracted_indicators(validation_status);
+
+CREATE INDEX IF NOT EXISTS idx_scores_company_id ON esg_scores(company_id);
+CREATE INDEX IF NOT EXISTS idx_scores_report_year ON esg_scores(report_year);
+
+COMMENT ON TABLE extracted_indicators IS 'Stores ESG indicators extracted from documents using LLM';
+COMMENT ON TABLE esg_scores IS 'Stores calculated ESG scores aggregated from extracted indicators';
+COMMENT ON COLUMN extracted_indicators.confidence_score IS 'LLM confidence score (0.0-1.0)';
+COMMENT ON COLUMN extracted_indicators.source_pages IS 'Array of page numbers where indicator was found';
+COMMENT ON COLUMN extracted_indicators.source_chunk_ids IS 'Array of chunk IDs from document_embeddings';
+COMMENT ON COLUMN esg_scores.calculation_metadata IS 'JSON containing weights, methodology, and indicator contributions';

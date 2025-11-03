@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-dark-bg text-dark-text-primary;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #333333 #000000;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: #000000;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: #333333;
+    border-radius: 4px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: #444444;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors;
+  }
+  
+  .btn-secondary {
+    @apply px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors;
+  }
+  
+  .card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
+  }
+
+  /* Dark theme card component */
+  .card-dark {
+    @apply bg-dark-card rounded-2xl p-6 border border-dark-border transition-colors duration-200;
+  }
+
+  .card-dark:hover {
+    @apply bg-dark-cardHover;
+  }
+
+  /* Dark theme button variants */
+  .btn-dark {
+    @apply px-4 py-2 bg-dark-card text-dark-text-primary rounded-full hover:bg-dark-cardHover transition-all duration-200;
+  }
+
+  .btn-dark-pill {
+    @apply px-6 py-2 bg-dark-card text-dark-text-primary rounded-full hover:bg-dark-cardHover transition-all duration-200 border border-dark-border;
+  }
+
+  /* Icon button for dark theme */
+  .icon-btn-dark {
+    @apply p-2 rounded-full text-dark-text-secondary hover:text-dark-text-primary hover:bg-dark-card transition-all duration-200;
+  }
+
+  /* Input fields for dark theme */
+  .input-dark {
+    @apply bg-dark-card border border-dark-border text-dark-text-primary rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-accent-green focus:border-transparent transition-all duration-200;
+  }
+
+  .input-dark::placeholder {
+    @apply text-dark-text-muted;
+  }
+
+  /* Dropdown menu for dark theme */
+  .dropdown-dark {
+    @apply bg-dark-card border border-dark-border rounded-lg shadow-xl;
+  }
+
+  /* Link styles for dark theme */
+  .link-dark {
+    @apply text-dark-text-secondary hover:text-dark-text-primary transition-colors duration-200;
+  }
+
+  /* Smooth transitions for interactive elements */
+  .transition-smooth {
+    @apply transition-all duration-200 ease-in-out;
+  }
+}
+
+@layer utilities {
+  /* Text gradient utilities */
+  .text-gradient-green {
+    @apply bg-gradient-to-r from-accent-green-light to-accent-green bg-clip-text text-transparent;
+  }
+
+  .text-gradient-orange {
+    @apply bg-gradient-to-r from-accent-orange-light to-accent-orange bg-clip-text text-transparent;
+  }
+
+  /* Shadow utilities for dark theme */
+  .shadow-dark {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  }
+
+  .shadow-dark-lg {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Glow effects for accent colors */
+  .glow-green {
+    box-shadow: 0 0 20px rgba(168, 230, 61, 0.3);
+  }
+
+  .glow-orange {
+    box-shadow: 0 0 20px rgba(255, 152, 0, 0.3);
+  }
+
+  .glow-blue {
+    box-shadow: 0 0 20px rgba(33, 150, 243, 0.3);
+  }
+
+  .glow-pink {
+    box-shadow: 0 0 20px rgba(233, 30, 99, 0.3);
+  }
+}

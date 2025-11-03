@@ -1,0 +1,184 @@
+# ============================================================================
+# ESG Intelligence Platform - GitHub Actions CI/CD Example
+# ============================================================================
+# This is an example workflow for testing Docker Compose setup in CI/CD
+# Copy this to .github/workflows/docker-compose-test.yml to use it
+# ============================================================================
+
+name: Docker Compose Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'infra/**'
+      - 'services/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'infra/**'
+      - 'services/**'
+
+jobs:
+  test-docker-compose:
+    name: Test Docker Compose Setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Create .env file
+        run: |
+          cd infra
+          cp .env.example .env
+          # Set test values
+          sed -i 's/POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=test_password/' .env
+          sed -i 's/MINIO_ROOT_PASSWORD=.*/MINIO_ROOT_PASSWORD=test_password/' .env
+          sed -i 's/RABBITMQ_DEFAULT_PASS=.*/RABBITMQ_DEFAULT_PASS=test_password/' .env
+          # Use GitHub secrets for API keys
+          echo "GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}" >> .env
+
+      - name: Start services
+        run: |
+          cd infra
+          docker-compose up -d
+          echo "Waiting for services to initialize..."
+          sleep 60
+
+      - name: Check service health
+        run: |
+          cd infra
+          docker-compose ps
+          
+      - name: Run quick health check
+        run: |
+          cd infra
+          chmod +x quick-health-check.sh
+          ./quick-health-check.sh
+
+      - name: Run comprehensive tests
+        run: |
+          cd infra
+          chmod +x test-docker-setup.sh
+          ./test-docker-setup.sh
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          cd infra
+          mkdir -p logs
+          docker-compose logs > logs/docker-compose.log
+          docker-compose ps > logs/service-status.txt
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-compose-logs
+          path: infra/logs/
+
+      - name: Stop services
+        if: always()
+        run: |
+          cd infra
+          docker-compose down -v
+
+  test-development-mode:
+    name: Test Development Mode
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Create .env file
+        run: |
+          cd infra
+          cp .env.example .env
+          sed -i 's/POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=test_password/' .env
+          sed -i 's/MINIO_ROOT_PASSWORD=.*/MINIO_ROOT_PASSWORD=test_password/' .env
+          sed -i 's/RABBITMQ_DEFAULT_PASS=.*/RABBITMQ_DEFAULT_PASS=test_password/' .env
+          echo "GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}" >> .env
+
+      - name: Validate development configuration
+        run: |
+          cd infra
+          docker-compose -f docker-compose.yml -f docker-compose.dev.yml config > /dev/null
+          echo "Development configuration is valid"
+
+      - name: Start in development mode
+        run: |
+          cd infra
+          docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+          sleep 60
+
+      - name: Check services
+        run: |
+          cd infra
+          docker-compose ps
+
+      - name: Stop services
+        if: always()
+        run: |
+          cd infra
+          docker-compose down -v
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'infra'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  lint-docker-compose:
+    name: Lint Docker Compose Files
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Validate docker-compose.yml
+        run: |
+          cd infra
+          docker-compose config > /dev/null
+          echo "docker-compose.yml is valid"
+
+      - name: Validate docker-compose.dev.yml
+        run: |
+          cd infra
+          docker-compose -f docker-compose.yml -f docker-compose.dev.yml config > /dev/null
+          echo "docker-compose.dev.yml is valid"
+
+      - name: Check for secrets in files
+        run: |
+          # Check for potential secrets in docker-compose files
+          if grep -r "password.*=" infra/*.yml | grep -v "POSTGRES_PASSWORD" | grep -v "example"; then
+            echo "Warning: Potential hardcoded secrets found"
+            exit 1
+          fi

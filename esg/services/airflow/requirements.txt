@@ -1,0 +1,10 @@
+# Airflow providers
+apache-airflow-providers-docker==3.9.0
+apache-airflow-providers-postgres==5.10.0
+
+# Database and storage clients
+psycopg2-binary==2.9.9
+minio==7.2.3
+
+# Google GenAI
+google-generativeai==0.3.2

@@ -1,0 +1,57 @@
+# Environment files
+.env
+*.env
+!.env.example
+
+# Sensitive files
+pgpass
+.test_api_key
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments (ignore)
+.venv/
+venv/
+ENV/
+env/
+
+# Python version and lock files (track these!)
+# .python-version - tracks Python version per service
+# uv.lock - ensures reproducible builds
+# These files should be committed to version control
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+test_reports/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Node
+node_modules/
+.npm/
+*.tsbuildinfo
+
+# Docker
+docker-compose.override.yml

@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "Postgres": {
+      "Name": "Postgres",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "moz",
+      "Username": "drfitz",
+      "PassFile": "/pgpass"
+    }
+  }
+}

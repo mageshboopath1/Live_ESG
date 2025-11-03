@@ -1,0 +1,152 @@
+# ============================================================================
+# Airflow Docker Compose Configuration
+# ============================================================================
+# This file adds Airflow to the ESG platform for orchestration.
+# 
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.airflow.yml up
+# ============================================================================
+
+x-airflow-common:
+  &airflow-common
+  build:
+    context: ../services/airflow
+    dockerfile: Dockerfile
+  image: esg-airflow:latest
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    # Variables (can also be set via Airflow UI)
+    AIRFLOW_VAR_DB_NAME: ${POSTGRES_DB}
+    AIRFLOW_VAR_DB_USER: ${POSTGRES_USER}
+    AIRFLOW_VAR_DB_PASSWORD: ${POSTGRES_PASSWORD}
+    AIRFLOW_VAR_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+    AIRFLOW_VAR_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+    AIRFLOW_VAR_GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+  volumes:
+    - ../services/airflow/dags:/opt/airflow/dags
+    - ../services/airflow/logs:/opt/airflow/logs
+    - ../services/airflow/plugins:/opt/airflow/plugins
+    - /var/run/docker.sock:/var/run/docker.sock  # For DockerOperator
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
+
+services:
+  # ============================================================================
+  # Airflow Database Initialization
+  # ============================================================================
+  
+  airflow-init:
+    <<: *airflow-common
+    container_name: esg-airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        # Create airflow database if it doesn't exist
+        export PGPASSWORD=${POSTGRES_PASSWORD}
+        psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -tc "SELECT 1 FROM pg_database WHERE datname = 'airflow'" | grep -q 1 || \
+        psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "CREATE DATABASE airflow"
+        
+        # Initialize Airflow database
+        airflow db init
+        
+        # Create admin user
+        airflow users create \
+          --username admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com \
+          --password admin
+        
+        echo "Airflow initialization complete"
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+    networks:
+      - backend
+    restart: "no"
+
+  # ============================================================================
+  # Airflow Webserver
+  # ============================================================================
+  
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: esg-airflow-webserver
+    command: webserver
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - backend
+      - frontend
+
+  # ============================================================================
+  # Airflow Scheduler
+  # ============================================================================
+  
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: esg-airflow-scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - backend
+
+  # ============================================================================
+  # Airflow Triggerer (for deferrable operators)
+  # ============================================================================
+  
+  airflow-triggerer:
+    <<: *airflow-common
+    container_name: esg-airflow-triggerer
+    command: triggerer
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - backend
+
+# Note: No need to define volumes and networks here as they're inherited from docker-compose.yml

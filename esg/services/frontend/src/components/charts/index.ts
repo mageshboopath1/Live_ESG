@@ -1,0 +1,6 @@
+export { default as BarChart } from './BarChart.vue'
+export { default as LineChart } from './LineChart.vue'
+export { default as RadarChart } from './RadarChart.vue'
+export { default as IndicatorTrendChart } from './IndicatorTrendChart.vue'
+export { default as PillarComparisonChart } from './PillarComparisonChart.vue'
+export { default as MultiIndicatorChart } from './MultiIndicatorChart.vue'
